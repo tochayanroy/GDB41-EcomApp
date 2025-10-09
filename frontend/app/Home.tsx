@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Dimensions,
     FlatList,
@@ -11,14 +11,19 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Alert,
+    RefreshControl,
 } from 'react-native';
 import Carousel from 'react-native-reanimated-carousel';
 
 const { width } = Dimensions.get('window');
 
-const Home = () => {
+const HomeScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [refreshing, setRefreshing] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [cartCount, setCartCount] = useState(0);
 
   // Mock data for banners
   const banners = [
@@ -26,19 +31,22 @@ const Home = () => {
       id: '1',
       image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400',
       title: 'Summer Sale',
-      subtitle: 'Up to 50% off'
+      subtitle: 'Up to 50% off',
+      targetScreen: 'Products'
     },
     {
       id: '2',
       image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400',
       title: 'New Arrivals',
-      subtitle: 'Latest fashion trends'
+      subtitle: 'Latest fashion trends',
+      targetScreen: 'NewArrivals'
     },
     {
       id: '3',
       image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
       title: 'Electronics',
-      subtitle: 'Smart gadgets'
+      subtitle: 'Smart gadgets',
+      targetScreen: 'CategoryProducts'
     }
   ];
 
@@ -57,58 +65,139 @@ const Home = () => {
     {
       id: '1',
       name: 'Wireless Headphones',
-      price: '$99.99',
-      originalPrice: '$129.99',
+      price: 99.99,
+      originalPrice: 129.99,
       image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300',
       rating: 4.5,
-      category: 'Electronics'
+      category: 'Electronics',
+      quantity: 10
     },
     {
       id: '2',
       name: 'Running Shoes',
-      price: '$79.99',
-      originalPrice: '$99.99',
+      price: 79.99,
+      originalPrice: 99.99,
       image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300',
       rating: 4.2,
-      category: 'Sports'
+      category: 'Sports',
+      quantity: 15
     },
     {
       id: '3',
       name: 'Smart Watch',
-      price: '$199.99',
-      originalPrice: '$249.99',
+      price: 199.99,
+      originalPrice: 249.99,
       image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
       rating: 4.7,
-      category: 'Electronics'
+      category: 'Electronics',
+      quantity: 8
     },
     {
       id: '4',
       name: 'Perfume',
-      price: '$49.99',
-      originalPrice: '$69.99',
+      price: 49.99,
+      originalPrice: 69.99,
       image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=300',
       rating: 4.3,
-      category: 'Beauty'
+      category: 'Beauty',
+      quantity: 20
     },
     {
       id: '5',
       name: 'Coffee Mug',
-      price: '$14.99',
-      originalPrice: '$19.99',
+      price: 14.99,
+      originalPrice: 19.99,
       image: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=300',
       rating: 4.1,
-      category: 'Home'
+      category: 'Home',
+      quantity: 25
     },
     {
       id: '6',
       name: 'Backpack',
-      price: '$59.99',
-      originalPrice: '$79.99',
+      price: 59.99,
+      originalPrice: 79.99,
       image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300',
       rating: 4.4,
-      category: 'Fashion'
+      category: 'Fashion',
+      quantity: 12
     },
   ];
+
+  useEffect(() => {
+    loadUserData();
+    loadCartCount();
+  }, []);
+
+  const loadUserData = async () => {
+    // Simulate API call to get user data
+    setUserData({
+      name: 'John Doe',
+      email: 'john@example.com'
+    });
+  };
+
+  const loadCartCount = async () => {
+    // Simulate API call to get cart count
+    setCartCount(3);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadUserData(), loadCartCount()]);
+    setRefreshing(false);
+  };
+
+  const handleSearch = () => {
+    if (searchQuery.trim()) {
+      navigation.navigate('Search', { query: searchQuery });
+    }
+  };
+
+  const handleBannerPress = (banner) => {
+    if (banner.targetScreen) {
+      navigation.navigate(banner.targetScreen, { 
+        bannerId: banner.id,
+        title: banner.title 
+      });
+    }
+  };
+
+  const handleCategoryPress = (category) => {
+    setActiveCategory(category.name);
+    if (category.name !== 'All') {
+      navigation.navigate('CategoryProducts', { 
+        categoryId: category.id,
+        categoryName: category.name 
+      });
+    }
+  };
+
+  const handleProductPress = (product) => {
+    navigation.navigate('ProductDetail', { 
+      productId: product.id,
+      product 
+    });
+  };
+
+  const addToCart = (product) => {
+    // Implement add to cart functionality
+    Alert.alert(
+      'Added to Cart',
+      `${product.name} has been added to your cart`,
+      [{ text: 'OK' }]
+    );
+    setCartCount(prev => prev + 1);
+  };
+
+  const addToWishlist = (product) => {
+    // Implement add to wishlist functionality
+    Alert.alert(
+      'Added to Wishlist',
+      `${product.name} has been added to your wishlist`,
+      [{ text: 'OK' }]
+    );
+  };
 
   const filteredProducts = activeCategory === 'All' 
     ? products 
@@ -116,7 +205,11 @@ const Home = () => {
 
   const renderBannerItem = ({ item }) => {
     return (
-      <View style={styles.bannerContainer}>
+      <TouchableOpacity 
+        style={styles.bannerContainer}
+        onPress={() => handleBannerPress(item)}
+        activeOpacity={0.9}
+      >
         <Image source={{ uri: item.image }} style={styles.bannerImage} />
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.8)']}
@@ -127,7 +220,7 @@ const Home = () => {
             <Text style={styles.bannerSubtitle}>{item.subtitle}</Text>
           </View>
         </LinearGradient>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -137,12 +230,12 @@ const Home = () => {
         styles.categoryItem,
         activeCategory === item.name && styles.activeCategoryItem
       ]}
-      onPress={() => setActiveCategory(item.name)}
+      onPress={() => handleCategoryPress(item)}
     >
       <Ionicons
         name={item.icon}
         size={24}
-        color={activeCategory === item.name ? '#FF6B6B' : '#666'}
+        color={activeCategory === item.name ? '#fff' : '#666'}
       />
       <Text style={[
         styles.categoryText,
@@ -154,16 +247,22 @@ const Home = () => {
   );
 
   const renderProductItem = ({ item }) => (
-    <TouchableOpacity style={styles.productCard}>
+    <TouchableOpacity 
+      style={styles.productCard}
+      onPress={() => handleProductPress(item)}
+    >
       <View style={styles.productImageContainer}>
         <Image source={{ uri: item.image }} style={styles.productImage} />
-        <TouchableOpacity style={styles.wishlistButton}>
+        <TouchableOpacity 
+          style={styles.wishlistButton}
+          onPress={() => addToWishlist(item)}
+        >
           <Ionicons name="heart-outline" size={20} color="#666" />
         </TouchableOpacity>
         {item.originalPrice && (
           <View style={styles.discountBadge}>
             <Text style={styles.discountText}>
-              {Math.round((1 - parseFloat(item.price.replace('$', '')) / parseFloat(item.originalPrice.replace('$', ''))) * 100)}%
+              {Math.round((1 - item.price / item.originalPrice) * 100)}%
             </Text>
           </View>
         )}
@@ -178,13 +277,16 @@ const Home = () => {
         </View>
         
         <View style={styles.priceContainer}>
-          <Text style={styles.currentPrice}>{item.price}</Text>
+          <Text style={styles.currentPrice}>${item.price}</Text>
           {item.originalPrice && (
-            <Text style={styles.originalPrice}>{item.originalPrice}</Text>
+            <Text style={styles.originalPrice}>${item.originalPrice}</Text>
           )}
         </View>
         
-        <TouchableOpacity style={styles.addToCartButton}>
+        <TouchableOpacity 
+          style={styles.addToCartButton}
+          onPress={() => addToCart(item)}
+        >
           <Text style={styles.addToCartText}>Add to Cart</Text>
         </TouchableOpacity>
       </View>
@@ -198,17 +300,27 @@ const Home = () => {
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.greeting}>Hello,</Text>
-            <Text style={styles.userName}>John Doe</Text>
+            <Text style={styles.userName}>
+              {userData?.name || 'Welcome Back'}
+            </Text>
           </View>
           <View style={styles.headerIcons}>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => navigation.navigate('Notifications')}
+            >
               <Ionicons name="notifications-outline" size={24} color="#333" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => navigation.navigate('Cart')}
+            >
               <Ionicons name="cart-outline" size={24} color="#333" />
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>3</Text>
-              </View>
+              {cartCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{cartCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -221,14 +333,24 @@ const Home = () => {
             placeholder="Search products..."
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
           />
-          <TouchableOpacity style={styles.filterButton}>
+          <TouchableOpacity 
+            style={styles.filterButton}
+            onPress={() => navigation.navigate('Filters')}
+          >
             <Ionicons name="filter" size={20} color="#666" />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Banner Slider with Carousel */}
         <View style={styles.bannerSection}>
           <Carousel
@@ -248,7 +370,7 @@ const Home = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Categories</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Categories')}>
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
           </View>
@@ -266,7 +388,7 @@ const Home = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Products</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Products')}>
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
           </View>
@@ -291,7 +413,10 @@ const Home = () => {
               <View>
                 <Text style={styles.offerTitle}>Special Offer</Text>
                 <Text style={styles.offerSubtitle}>Get 30% off on first order</Text>
-                <TouchableOpacity style={styles.offerButton}>
+                <TouchableOpacity 
+                  style={styles.offerButton}
+                  onPress={() => navigation.navigate('Offers')}
+                >
                   <Text style={styles.offerButtonText}>Shop Now</Text>
                 </TouchableOpacity>
               </View>
@@ -301,6 +426,24 @@ const Home = () => {
               />
             </View>
           </LinearGradient>
+        </View>
+
+        {/* Recent Viewed */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recently Viewed</Text>
+            <TouchableOpacity>
+              <Text style={styles.seeAllText}>Clear all</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={products.slice(0, 2)}
+            renderItem={renderProductItem}
+            keyExtractor={(item) => item.id + '_recent'}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recentList}
+          />
         </View>
       </ScrollView>
     </View>
@@ -315,7 +458,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 50,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -478,6 +621,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 15,
   },
+  recentList: {
+    paddingBottom: 10,
+  },
   productCard: {
     width: (width - 50) / 2,
     backgroundColor: '#fff',
@@ -488,6 +634,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+    marginBottom: 10,
   },
   productImageContainer: {
     position: 'relative',
@@ -616,4 +763,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Home;
+export default HomeScreen;
