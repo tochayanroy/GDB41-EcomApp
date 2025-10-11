@@ -7,10 +7,17 @@ const dotenv = require('dotenv');
 const generateToken = require('../utils/generateToken')
 dotenv.config();
 const passport = require('passport');
+const sendOtpVerificationEmail = require('../utils/sendOtpVerificationEmail.js');
+const EmailVerificationModel = require('../modules/EmailVerification.js')
 
 const fs = require('fs');
 const path = require('path');
 const { singleImageUpload } = require('../middleware/multer')
+
+
+
+
+
 
 
 
@@ -34,12 +41,65 @@ router.post('/register', async (req, res) => {
         const newUser = new User({ username, email, password: hashPassword, phoneNumber });
         await newUser.save();
 
-        const { auth_token } = await generateToken(newUser)
+        sendOtpVerificationEmail(req, res, newUser);
 
-
-        res.status(201).json({ message: 'User registered successfully', auth_token });
+        res.status(201).json({
+            status: true,
+        });
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
+    }
+})
+
+
+router.post('/verifyEmail', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({ status: "failed", message: "All fields are required" });
+        }
+
+        const existingUser = await User_Schima.findOne({ email });
+
+        if (!existingUser) {
+            return res.status(404).json({ status: "failed", message: "Email doesn't exists" });
+        }
+
+        if (existingUser.is_verified) {
+            return res.status(400).json({ status: "failed", message: "Email is already verified" });
+        }
+
+        const emailVerification = await EmailVerificationModel.findOne({ userId: existingUser._id, otp });
+        if (!emailVerification) {
+            if (!existingUser.is_verified) {
+                await sendEmail(req, res, existingUser)
+                return res.status(400).json({ status: "failed", message: "Invalid OTP, new OTP sent to your email" });
+            }
+            return res.status(400).json({ status: "failed", message: "Invalid OTP" });
+        }
+
+        const currentTime = new Date();
+        const expirationTime = new Date(emailVerification.createdAt.getTime() + 15 * 60 * 1000);
+        if (currentTime > expirationTime) {
+            await sendEmail(req, res, existingUser)
+            return res.status(400).json({ status: "failed", message: "OTP expired, new OTP sent to your email" });
+        }
+
+        existingUser.is_verified = true;
+        await existingUser.save();
+
+        const { auth_token } = await generateToken(existingUser)
+
+        await EmailVerificationModel.deleteMany({ userId: existingUser._id });
+        res.status(200).json({
+            status: true,
+            role: existingUser.role,
+            auth_token
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ status: "failed", message: "Unable to verify email, please try again later" });
     }
 })
 
@@ -87,9 +147,6 @@ router.get('/profile', passport.authenticate('jwt', { session: false }), async (
         res.status(500).json({ message: 'Internal server error' });
     }
 })
-
-
-
 
 
 router.post('/upload-profile-picture', passport.authenticate('jwt', { session: false }), singleImageUpload, async (req, res) => {

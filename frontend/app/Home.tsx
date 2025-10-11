@@ -18,7 +18,7 @@ import Carousel from 'react-native-reanimated-carousel';
 
 const { width } = Dimensions.get('window');
 
-const HomeScreen = ({ navigation }) => {
+const HomeScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
@@ -150,34 +150,34 @@ const HomeScreen = ({ navigation }) => {
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
-      navigation.navigate('Search', { query: searchQuery });
+      // navigation.navigate('Search', { query: searchQuery });
     }
   };
 
   const handleBannerPress = (banner) => {
     if (banner.targetScreen) {
-      navigation.navigate(banner.targetScreen, { 
-        bannerId: banner.id,
-        title: banner.title 
-      });
+      // navigation.navigate(banner.targetScreen, { 
+      //   bannerId: banner.id,
+      //   title: banner.title 
+      // });
     }
   };
 
   const handleCategoryPress = (category) => {
     setActiveCategory(category.name);
     if (category.name !== 'All') {
-      navigation.navigate('CategoryProducts', { 
-        categoryId: category.id,
-        categoryName: category.name 
-      });
+      // navigation.navigate('CategoryProducts', { 
+      //   categoryId: category.id,
+      //   categoryName: category.name 
+      // });
     }
   };
 
   const handleProductPress = (product) => {
-    navigation.navigate('ProductDetail', { 
-      productId: product.id,
-      product 
-    });
+    // navigation.navigate('ProductDetail', { 
+    //   productId: product.id,
+    //   product 
+    // });
   };
 
   const addToCart = (product) => {
@@ -307,13 +307,13 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.headerIcons}>
             <TouchableOpacity 
               style={styles.iconButton}
-              onPress={() => navigation.navigate('Notifications')}
+              // onPress={() => navigation.navigate('Notifications')}
             >
               <Ionicons name="notifications-outline" size={24} color="#333" />
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.iconButton}
-              onPress={() => navigation.navigate('Cart')}
+              // onPress={() => navigation.navigate('Cart')}
             >
               <Ionicons name="cart-outline" size={24} color="#333" />
               {cartCount > 0 && (
@@ -338,7 +338,7 @@ const HomeScreen = ({ navigation }) => {
           />
           <TouchableOpacity 
             style={styles.filterButton}
-            onPress={() => navigation.navigate('Filters')}
+            // onPress={() => navigation.navigate('Filters')}
           >
             <Ionicons name="filter" size={20} color="#666" />
           </TouchableOpacity>
@@ -370,7 +370,9 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Categories</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Categories')}>
+            <TouchableOpacity 
+            // onPress={() => navigation.navigate('Categories')}
+            >
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
           </View>
@@ -388,7 +390,9 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Products</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Products')}>
+            <TouchableOpacity 
+            // onPress={() => navigation.navigate('Products')}
+            >
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
           </View>
@@ -415,7 +419,7 @@ const HomeScreen = ({ navigation }) => {
                 <Text style={styles.offerSubtitle}>Get 30% off on first order</Text>
                 <TouchableOpacity 
                   style={styles.offerButton}
-                  onPress={() => navigation.navigate('Offers')}
+                  // onPress={() => navigation.navigate('Offers')}
                 >
                   <Text style={styles.offerButtonText}>Shop Now</Text>
                 </TouchableOpacity>

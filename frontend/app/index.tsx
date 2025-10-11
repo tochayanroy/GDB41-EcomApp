@@ -1,11 +1,11 @@
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
-import ProductDetailsScreen from './EditProfileScreen'
+import Home from './ProductListingScreen '
 
 const index = () => {
   return (
     <View style={{flex:1}}>
-      <ProductDetailsScreen/>
+      <Home/>
     </View>
   )
 }
