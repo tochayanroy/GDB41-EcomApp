@@ -1,4 +1,4 @@
-const EmailVerificationModel = require('../models/EmailVerification');
+const EmailVerificationModel = require('../modules/EmailVerification');
 const dotenv = require("dotenv");
 const nodemailer = require("nodemailer");
 dotenv.config();
