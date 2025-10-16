@@ -10,7 +10,7 @@ const userSlice = createSlice({
     reducers: {
         setLogin: (state, action) => {
             state.isLogin = true,
-                state.role = action.payload.role
+            state.role = action.payload.role
         },
         setLogout: (state) => {
             state.isLogin = false,

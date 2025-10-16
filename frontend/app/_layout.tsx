@@ -3,6 +3,9 @@ import { useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import Store from '../redux/Store';
+import { Provider } from 'react-redux';
+
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -67,13 +70,15 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(admin)" options={{ headerShown: false }} />
-      <Stack.Screen name="products" options={{ headerShown: false }} />
-      <Stack.Screen name="user" options={{ headerShown: false }} />
-      <Stack.Screen name="checkout" options={{ headerShown: false }} />
-    </Stack>
+    <Provider store={Store}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+        <Stack.Screen name="products" options={{ headerShown: false }} />
+        <Stack.Screen name="user" options={{ headerShown: false }} />
+        <Stack.Screen name="checkout" options={{ headerShown: false }} />
+      </Stack>
+    </Provider>
   );
 }
