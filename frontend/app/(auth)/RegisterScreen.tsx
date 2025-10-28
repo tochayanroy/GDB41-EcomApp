@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Dimensions,
@@ -18,13 +19,16 @@ import {
 
 const { width, height } = Dimensions.get('window');
 
-const RegisterScreen = ({ navigation }) => {
+const API_BASE_URL = 'http://192.168.0.101:5000'; 
+
+const RegisterScreen = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState({
-    fullName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
-    phone: ''
+    phoneNumber: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -39,8 +43,8 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   const validateForm = () => {
-    if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword || !formData.phoneNumber) {
+      Alert.alert('Error', 'All fields are required');
       return false;
     }
 
@@ -72,30 +76,52 @@ const RegisterScreen = ({ navigation }) => {
 
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      Alert.alert(
-        'Success!',
-        'Your account has been created successfully.',
-        [
-          {
-            text: 'Continue Shopping',
-            onPress: () => {
-              // Navigate to Home screen
-              // navigation.navigate('Home');
+    try {
+      const response = await fetch(`${API_BASE_URL}/user/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          phoneNumber: formData.phoneNumber
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert(
+          'Success!',
+          'Registration successful. Please check your email for verification OTP.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.push('./OTPVerificationScreen', {
+                  email: formData.email 
+                });
+              }
             }
-          }
-        ]
-      );
-    }, 2000);
+          ]
+        );
+      } else {
+        Alert.alert('Error', data.message || 'Registration failed');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocialRegister = (provider) => {
     Alert.alert(
-      `${provider} Sign Up`,
-      `${provider} registration would be implemented here`,
+      'Coming Soon',
+      `${provider} registration will be available soon`,
       [{ text: 'OK' }]
     );
   };
@@ -106,8 +132,7 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   const handleLogin = () => {
-    // navigation.navigate('Login');
-    Alert.alert('Login', 'Navigate to Login screen');
+    router.push('./LoginScreen');
   };
 
   const getPasswordStrength = (password) => {
@@ -153,7 +178,7 @@ const RegisterScreen = ({ navigation }) => {
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
-            onPress={() => navigation?.goBack()}
+            onPress={() => router.back()}
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
@@ -169,17 +194,17 @@ const RegisterScreen = ({ navigation }) => {
 
         {/* Registration Form */}
         <View style={styles.formContainer}>
-          {/* Full Name Input */}
+          {/* Username Input */}
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.textInput}
-              placeholder="Full Name"
+              placeholder="Username"
               placeholderTextColor="#999"
-              value={formData.fullName}
-              onChangeText={(value) => handleInputChange('fullName', value)}
-              autoCapitalize="words"
-              autoComplete="name"
+              value={formData.username}
+              onChangeText={(value) => handleInputChange('username', value)}
+              autoCapitalize="none"
+              autoComplete="username"
             />
           </View>
 
@@ -198,15 +223,15 @@ const RegisterScreen = ({ navigation }) => {
             />
           </View>
 
-          {/* Phone Input (Optional) */}
+          {/* Phone Input */}
           <View style={styles.inputContainer}>
             <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.textInput}
-              placeholder="Phone Number (Optional)"
+              placeholder="Phone Number"
               placeholderTextColor="#999"
-              value={formData.phone}
-              onChangeText={(value) => handleInputChange('phone', value)}
+              value={formData.phoneNumber}
+              onChangeText={(value) => handleInputChange('phoneNumber', value)}
               keyboardType="phone-pad"
               autoComplete="tel"
             />
@@ -323,10 +348,10 @@ const RegisterScreen = ({ navigation }) => {
           <TouchableOpacity 
             style={[
               styles.registerButton,
-              (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword || !acceptTerms) && styles.registerButtonDisabled
+              (!formData.username || !formData.email || !formData.password || !formData.confirmPassword || !formData.phoneNumber || !acceptTerms) && styles.registerButtonDisabled
             ]}
             onPress={handleRegister}
-            disabled={!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword || !acceptTerms || isLoading}
+            disabled={!formData.username || !formData.email || !formData.password || !formData.confirmPassword || !formData.phoneNumber || !acceptTerms || isLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" size="small" />

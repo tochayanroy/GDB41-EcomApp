@@ -98,7 +98,7 @@ router.get('/getProduct/:id', async (req, res) => {
         const product = await Product.findById(req.params.id).populate('categorie');
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
-        }
+        } 
         res.json(product);
     } catch (err) {
         console.error(err);

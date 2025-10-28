@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useRef, useEffect } from 'react';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   Dimensions,
   StyleSheet,
@@ -15,19 +16,24 @@ import {
   StatusBar,
   ActivityIndicator
 } from 'react-native';
+import axios from 'axios';
 
 const { width, height } = Dimensions.get('window');
 
-const OTPVerificationScreen = ({ navigation, route }) => {
+const API_BASE_URL = 'http://192.168.0.101:5000';
+
+const OTPVerificationScreen = () => {
+  const router = useRouter();
+  const params = useLocalSearchParams();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
   
   const inputRefs = useRef([]);
-  const email = route?.params?.email || 'user@example.com';
-  const purpose = route?.params?.purpose || 'account verification';
-  const phone = route?.params?.phone;
+  const email = params?.email || '';
+  const purpose = params?.purpose || 'account verification';
+  const phone = params?.phone;
 
   useEffect(() => {
     startCountdown();
@@ -85,6 +91,74 @@ const OTPVerificationScreen = ({ navigation, route }) => {
     }
   };
 
+  // API Call to Verify OTP using Axios
+  const verifyOtpAPI = async (otpCode) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/user/verifyEmail`, {
+        email: email,
+        otp: otpCode
+      });
+
+      return { 
+        success: true, 
+        data: response.data,
+        message: response.data.message 
+      };
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      
+      if (error.response) {
+        return { 
+          success: false, 
+          message: error.response.data.message || 'OTP verification failed' 
+        };
+      } else if (error.request) {
+        return { 
+          success: false, 
+          message: 'Network error. Please check your connection and try again.' 
+        };
+      } else {
+        return { 
+          success: false, 
+          message: 'An unexpected error occurred. Please try again.' 
+        };
+      }
+    }
+  };
+
+  // API Call to Resend OTP using Axios
+  const resendOtpAPI = async () => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/auth/resend-otp`, {
+        email: email
+      });
+
+      return { 
+        success: true, 
+        message: response.data.message || 'OTP sent successfully' 
+      };
+    } catch (error) {
+      console.error('Resend OTP error:', error);
+      
+      if (error.response) {
+        return { 
+          success: false, 
+          message: error.response.data.message || 'Failed to resend OTP' 
+        };
+      } else if (error.request) {
+        return { 
+          success: false, 
+          message: 'Network error. Please check your connection and try again.' 
+        };
+      } else {
+        return { 
+          success: false, 
+          message: 'An unexpected error occurred. Please try again.' 
+        };
+      }
+    }
+  };
+
   const handleVerifyOtp = async () => {
     const fullOtp = otp.join('');
     
@@ -100,48 +174,58 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
     setIsLoading(true);
 
-    // Simulate API call to verify OTP
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // For demo purposes, accept any 6-digit code
-      if (fullOtp.length === 6) {
-        const successMessages = {
-          'account verification': 'Your account has been verified successfully!',
-          'password reset': 'Your identity has been verified. You can now reset your password.',
-          'phone verification': 'Your phone number has been verified successfully!',
-          'transaction': 'Transaction verified successfully!',
-          'default': 'Verification successful!'
-        };
+    const result = await verifyOtpAPI(fullOtp);
 
-        const message = successMessages[purpose] || successMessages.default;
-        
-        Alert.alert(
-          'Success!',
-          message,
-          [
-            {
-              text: 'Continue',
-              onPress: () => {
-                // Navigate based on purpose
-                switch (purpose) {
-                  case 'password reset':
-                    navigation.navigate('ResetPassword', { email });
-                    break;
-                  case 'account verification':
-                    navigation.navigate('Login');
-                    break;
-                  default:
-                    navigation.goBack();
-                }
+    setIsLoading(false);
+
+    if (result.success) {
+      const { auth_token, role } = result.data;
+      
+      // Store the token (you might want to use AsyncStorage or secure storage)
+      // await AsyncStorage.setItem('auth_token', auth_token);
+      // await AsyncStorage.setItem('user_role', role);
+
+      const successMessages = {
+        'account verification': 'Your account has been verified successfully!',
+        'password reset': 'Your identity has been verified. You can now reset your password.',
+        'phone verification': 'Your phone number has been verified successfully!',
+        'transaction': 'Transaction verified successfully!',
+        'default': 'Verification successful!'
+      };
+
+      const message = successMessages[purpose] || successMessages.default;
+      
+      Alert.alert(
+        'Success!',
+        message,
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              // Navigate based on purpose
+              switch (purpose) {
+                case 'password reset':
+                  router.push({ pathname: './ResetPassword', params: { email } });
+                  break;
+                case 'account verification':
+                  // Navigate to Home screen after successful verification
+                  router.replace('../HomeScreen');
+                  break;
+                default:
+                  router.replace('../HomeScreen');
               }
             }
-          ]
-        );
-      } else {
-        Alert.alert('Error', 'Invalid verification code. Please try again.');
+          }
+        ]
+      );
+    } else {
+      Alert.alert('Error', result.message);
+      // Clear OTP on failure
+      setOtp(['', '', '', '', '', '']);
+      if (inputRefs.current[0]) {
+        inputRefs.current[0].focus();
       }
-    }, 2000);
+    }
   };
 
   const handleResendOtp = async () => {
@@ -149,9 +233,11 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
     setIsLoading(true);
 
-    // Simulate API call to resend OTP
-    setTimeout(() => {
-      setIsLoading(false);
+    const result = await resendOtpAPI();
+
+    setIsLoading(false);
+
+    if (result.success) {
       startCountdown();
       setOtp(['', '', '', '', '', '']);
       
@@ -162,10 +248,12 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
       Alert.alert(
         'Code Sent',
-        `A new verification code has been sent to ${phone ? 'your phone' : email}`,
+        `A new verification code has been sent to ${email}`,
         [{ text: 'OK' }]
       );
-    }, 1500);
+    } else {
+      Alert.alert('Error', result.message);
+    }
   };
 
   const getPurposeTitle = () => {
@@ -219,7 +307,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
-            onPress={() => navigation?.goBack()}
+            onPress={() => router.back()}
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
@@ -328,19 +416,6 @@ const OTPVerificationScreen = ({ navigation, route }) => {
             <Ionicons name="refresh-outline" size={16} color="#666" />
             <Text style={styles.helpText}>Request new code if expired</Text>
           </View>
-        </View>
-
-        {/* Alternative Methods */}
-        <View style={styles.alternativeMethods}>
-          <Text style={styles.alternativeTitle}>Having trouble?</Text>
-          <TouchableOpacity style={styles.alternativeButton}>
-            <Ionicons name="call-outline" size={18} color="#FF6B6B" />
-            <Text style={styles.alternativeButtonText}>Get a call instead</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.alternativeButton}>
-            <Ionicons name="chatbubble-outline" size={18} color="#FF6B6B" />
-            <Text style={styles.alternativeButtonText}>Get code via SMS</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Support */}
@@ -513,38 +588,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  helpItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
   helpText: {
     fontSize: 12,
     color: '#666',
     marginLeft: 8,
-  },
-  alternativeMethods: {
-    alignItems: 'center',
-    marginBottom: 25,
-  },
-  alternativeTitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
-    fontWeight: '500',
-  },
-  alternativeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  alternativeButtonText: {
-    fontSize: 14,
-    color: '#FF6B6B',
-    fontWeight: '500',
-    marginLeft: 6,
   },
   supportContainer: {
     flexDirection: 'row',

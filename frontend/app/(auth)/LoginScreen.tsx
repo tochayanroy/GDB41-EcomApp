@@ -1,5 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import {
   Dimensions,
   StyleSheet,
@@ -15,10 +18,14 @@ import {
   StatusBar,
   ActivityIndicator
 } from 'react-native';
+import axios from 'axios';
 
 const { width, height } = Dimensions.get('window');
 
-const LoginScreen = ({ navigation }) => {
+const API_BASE_URL = 'http://192.168.0.101:5000';
+
+const LoginScreen = () => {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,39 +45,66 @@ const LoginScreen = ({ navigation }) => {
 
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // For demo purposes, accept any valid email and password
-      if (email && password) {
-        Alert.alert('Success', 'Login successful!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate to Home screen or main app
-              // navigation.navigate('Home');
-            }
-          }
-        ]);
-      } else {
-        Alert.alert('Error', 'Invalid credentials. Please try again.');
+    try {
+      const response = await axios.post(`${API_BASE_URL}/user/login`, {
+        email,
+        password
+      });
+
+      if (response.status === 200) {
+        const { auth_token, message } = response.data;
+
+        // Store the token (you might want to use AsyncStorage or secure storage)
+        await AsyncStorage.setItem('auth_token', auth_token);
+
+        Alert.alert('Success', message || 'Login successful!');
       }
-    }, 2000);
+    } catch (error) {
+      console.error('Login error:', error);
+
+      if (error.response) {
+        // Server responded with error status
+        const errorMessage = error.response.data.message || 'Login failed. Please try again.';
+        Alert.alert('Error', errorMessage);
+      } else if (error.request) {
+        // Network error
+        Alert.alert('Error', 'Network error. Please check your connection and try again.');
+      } else {
+        // Other errors
+        Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {
+    if (!email) {
+      Alert.alert('Error', 'Please enter your email address first');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
     Alert.alert(
       'Reset Password',
-      'A password reset link will be sent to your email.',
+      `A password reset link will be sent to ${email}`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Send', 
+        {
+          text: 'Send',
           style: 'default',
-          onPress: () => {
-            // Implement forgot password logic
-            Alert.alert('Success', 'Password reset link sent to your email.');
+          onPress: async () => {
+            try {
+              // Implement forgot password API call
+              // await axios.post(`${API_BASE_URL}/auth/forgot-password`, { email });
+              Alert.alert('Success', 'Password reset link sent to your email.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to send reset link. Please try again.');
+            }
           }
         }
       ]
@@ -79,8 +113,8 @@ const LoginScreen = ({ navigation }) => {
 
   const handleSocialLogin = (provider) => {
     Alert.alert(
-      `${provider} Login`,
-      `${provider} login would be implemented here`,
+      'Coming Soon',
+      `${provider} login will be available soon`,
       [{ text: 'OK' }]
     );
   };
@@ -91,18 +125,17 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const handleSignUp = () => {
-    // navigation.navigate('SignUp');
-    Alert.alert('Sign Up', 'Navigate to Sign Up screen');
+    router.push('./RegisterScreen');
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
-      <ScrollView 
+
+      <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
@@ -146,21 +179,21 @@ const LoginScreen = ({ navigation }) => {
               secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.eyeIcon}
               onPress={() => setShowPassword(!showPassword)}
             >
-              <Ionicons 
-                name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                size={20} 
-                color="#666" 
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#666"
               />
             </TouchableOpacity>
           </View>
 
           {/* Remember Me & Forgot Password */}
           <View style={styles.rememberForgotContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.rememberMeContainer}
               onPress={() => setRememberMe(!rememberMe)}
             >
@@ -181,7 +214,7 @@ const LoginScreen = ({ navigation }) => {
           </View>
 
           {/* Login Button */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.loginButton,
               (!email || !password) && styles.loginButtonDisabled
@@ -208,7 +241,7 @@ const LoginScreen = ({ navigation }) => {
 
           {/* Social Login Buttons */}
           <View style={styles.socialButtonsContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.socialButton, styles.googleButton]}
               onPress={() => handleSocialLogin('Google')}
             >
@@ -221,7 +254,7 @@ const LoginScreen = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.socialButton, styles.facebookButton]}
               onPress={() => handleSocialLogin('Facebook')}
             >
