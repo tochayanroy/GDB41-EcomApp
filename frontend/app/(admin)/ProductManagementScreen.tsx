@@ -16,8 +16,13 @@ import {
     Switch,
     RefreshControl
 } from 'react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 
 const { width } = Dimensions.get('window');
+
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const ProductManagementScreen = () => {
   const [products, setProducts] = useState([]);
@@ -29,6 +34,9 @@ const ProductManagementScreen = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [image, setImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -40,137 +48,177 @@ const ProductManagementScreen = () => {
   const [productForm, setProductForm] = useState({
     name: '',
     price: '',
-    originalPrice: '',
-    category: '',
-    brand: '',
     description: '',
     quantity: '',
-    sku: '',
-    isActive: true,
-    isFeatured: false,
-    images: [''],
-    features: [''],
-    specifications: {
-      weight: '',
-      dimensions: '',
-      color: ''
-    }
+    categorie: '',
+    discount: '0',
   });
 
-  // Static products data
-  const staticProducts = [
-    {
-      id: '1',
-      name: 'Wireless Bluetooth Headphones',
-      price: 99.99,
-      originalPrice: 129.99,
-      images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400'],
-      category: 'Electronics',
-      brand: 'SoundMax',
-      description: 'Premium wireless headphones with noise cancellation',
-      quantity: 25,
-      sku: 'SM-BT001',
-      isActive: true,
-      isFeatured: true,
-      rating: 4.5,
-      reviewCount: 128,
-      createdAt: '2024-01-15',
-      sales: 45
-    },
-    {
-      id: '2',
-      name: 'Running Shoes',
-      price: 79.99,
-      originalPrice: 99.99,
-      images: ['https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400'],
-      category: 'Sports',
-      brand: 'RunPro',
-      description: 'Professional running shoes for all terrains',
-      quantity: 15,
-      sku: 'RP-RS002',
-      isActive: true,
-      isFeatured: false,
-      rating: 4.2,
-      reviewCount: 89,
-      createdAt: '2024-01-10',
-      sales: 32
-    },
-    {
-      id: '3',
-      name: 'Smart Watch Series 5',
-      price: 199.99,
-      originalPrice: 249.99,
-      images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400'],
-      category: 'Electronics',
-      brand: 'TechWear',
-      description: 'Advanced smartwatch with health monitoring',
-      quantity: 8,
-      sku: 'TW-SW005',
-      isActive: true,
-      isFeatured: true,
-      rating: 4.7,
-      reviewCount: 234,
-      createdAt: '2024-01-08',
-      sales: 67
-    },
-    {
-      id: '4',
-      name: 'Designer Perfume',
-      price: 49.99,
-      originalPrice: 69.99,
-      images: ['https://images.unsplash.com/photo-1541643600914-78b084683601?w=400'],
-      category: 'Beauty',
-      brand: 'LuxScents',
-      description: 'Premium fragrance for everyday wear',
-      quantity: 0,
-      sku: 'LS-PF004',
-      isActive: false,
-      isFeatured: false,
-      rating: 4.3,
-      reviewCount: 56,
-      createdAt: '2024-01-05',
-      sales: 23
-    },
-    {
-      id: '5',
-      name: 'Coffee Mug Set',
-      price: 14.99,
-      originalPrice: 19.99,
-      images: ['https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400'],
-      category: 'Home',
-      brand: 'HomeEssentials',
-      description: 'Ceramic coffee mug set of 4',
-      quantity: 3,
-      sku: 'HE-CM007',
-      isActive: true,
-      isFeatured: false,
-      rating: 4.1,
-      reviewCount: 34,
-      createdAt: '2024-01-03',
-      sales: 18
-    },
-    {
-      id: '6',
-      name: 'Professional Backpack',
-      price: 59.99,
-      originalPrice: 79.99,
-      images: ['https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400'],
-      category: 'Fashion',
-      brand: 'UrbanGear',
-      description: 'Durable backpack for professionals',
-      quantity: 12,
-      sku: 'UG-BP009',
-      isActive: true,
-      isFeatured: true,
-      rating: 4.4,
-      reviewCount: 78,
-      createdAt: '2024-01-01',
-      sales: 41
-    }
-  ];
+  const [formErrors, setFormErrors] = useState({});
 
-  const categories = ['Electronics', 'Fashion', 'Home', 'Beauty', 'Sports', 'Books', 'Toys', 'Automotive'];
-  const brands = ['SoundMax', 'RunPro', 'TechWear', 'LuxScents', 'HomeEssentials', 'UrbanGear', 'Apple', 'Samsung'];
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  };
+
+  // API Functions
+  const fetchProducts = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/product/allProduct`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      Alert.alert('Error', 'Failed to fetch products');
+      return [];
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/category/getAllCategories`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data.categories || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+  };
+
+  const createProduct = async (productData, imageUri) => {
+    try {
+      const token = await getAuthToken();
+      
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('name', productData.name);
+      formData.append('price', productData.price);
+      formData.append('description', productData.description);
+      formData.append('quantity', productData.quantity);
+      formData.append('categorie', productData.categorie);
+      formData.append('discount', productData.discount);
+      
+      // Add image if available
+      if (imageUri) {
+        formData.append('image', {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: `product-${Date.now()}.jpg`
+        });
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/product/addProduct`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating product:', error);
+      throw error;
+    }
+  };
+
+  const updateProduct = async (productId, productData) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.put(`${API_BASE_URL}/product/${productId}`, productData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating product:', error);
+      throw error;
+    }
+  };
+
+  const deleteProduct = async (productId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.delete(`${API_BASE_URL}/product/${productId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      throw error;
+    }
+  };
+
+  // Image Picker Function
+  const pickImage = async () => {
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Sorry, we need camera roll permissions to upload images.');
+        return;
+      }
+
+      // Launch image picker
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Sorry, we need camera permissions to take photos.');
+        return;
+      }
+
+      // Launch camera
+      let result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const removeImage = () => {
+    setImage(null);
+  };
 
   useEffect(() => {
     loadProducts();
@@ -181,12 +229,21 @@ const ProductManagementScreen = () => {
     calculateStats();
   }, [products, searchQuery, activeFilter]);
 
-  const loadProducts = () => {
+  const loadProducts = async () => {
     setLoading(true);
-    setTimeout(() => {
-      setProducts(staticProducts);
+    try {
+      const [productsData, categoriesData] = await Promise.all([
+        fetchProducts(),
+        fetchCategories()
+      ]);
+      
+      setProducts(productsData);
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const onRefresh = async () => {
@@ -201,19 +258,18 @@ const ProductManagementScreen = () => {
     // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.brand.toLowerCase().includes(searchQuery.toLowerCase())
+        product.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
     // Filter by status
     switch (activeFilter) {
       case 'active':
-        filtered = filtered.filter(product => product.isActive);
+        filtered = filtered.filter(product => product.isActive !== false);
         break;
       case 'inactive':
-        filtered = filtered.filter(product => !product.isActive);
+        filtered = filtered.filter(product => product.isActive === false);
         break;
       case 'lowStock':
         filtered = filtered.filter(product => product.quantity > 0 && product.quantity <= 5);
@@ -222,7 +278,7 @@ const ProductManagementScreen = () => {
         filtered = filtered.filter(product => product.quantity === 0);
         break;
       case 'featured':
-        filtered = filtered.filter(product => product.isFeatured);
+        filtered = filtered.filter(product => product.isFeatured === true);
         break;
     }
 
@@ -231,7 +287,7 @@ const ProductManagementScreen = () => {
 
   const calculateStats = () => {
     const total = products.length;
-    const active = products.filter(p => p.isActive).length;
+    const active = products.filter(p => p.isActive !== false).length;
     const lowStock = products.filter(p => p.quantity > 0 && p.quantity <= 5).length;
     const outOfStock = products.filter(p => p.quantity === 0).length;
 
@@ -242,22 +298,49 @@ const ProductManagementScreen = () => {
     setProductForm({
       name: '',
       price: '',
-      originalPrice: '',
-      category: '',
-      brand: '',
       description: '',
       quantity: '',
-      sku: '',
-      isActive: true,
-      isFeatured: false,
-      images: [''],
-      features: [''],
-      specifications: {
-        weight: '',
-        dimensions: '',
-        color: ''
-      }
+      categorie: '',
+      discount: '0',
     });
+    setImage(null);
+    setFormErrors({});
+  };
+
+  const validateForm = () => {
+    const errors = {};
+
+    if (!productForm.name.trim()) {
+      errors.name = 'Product name is required';
+    }
+
+    if (!productForm.price.trim()) {
+      errors.price = 'Price is required';
+    } else if (isNaN(productForm.price) || parseFloat(productForm.price) <= 0) {
+      errors.price = 'Price must be a valid number greater than 0';
+    }
+
+    if (!productForm.quantity.trim()) {
+      errors.quantity = 'Quantity is required';
+    } else if (isNaN(productForm.quantity) || parseInt(productForm.quantity) < 0) {
+      errors.quantity = 'Quantity must be a valid non-negative number';
+    }
+
+    if (!productForm.categorie) {
+      errors.categorie = 'Category is required';
+    }
+
+    if (productForm.discount && (isNaN(productForm.discount) || parseFloat(productForm.discount) < 0)) {
+      errors.discount = 'Discount must be a valid non-negative number';
+    }
+
+    // Image validation for new products
+    if (showAddModal && !image) {
+      errors.image = 'Product image is required';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleAddProduct = () => {
@@ -267,75 +350,61 @@ const ProductManagementScreen = () => {
 
   const handleEditProduct = (product) => {
     setProductForm({
-      name: product.name,
-      price: product.price.toString(),
-      originalPrice: product.originalPrice?.toString() || '',
-      category: product.category,
-      brand: product.brand,
-      description: product.description,
-      quantity: product.quantity.toString(),
-      sku: product.sku,
-      isActive: product.isActive,
-      isFeatured: product.isFeatured,
-      images: product.images,
-      features: [''],
-      specifications: {
-        weight: '',
-        dimensions: '',
-        color: ''
-      }
+      name: product.name || '',
+      price: product.price?.toString() || '',
+      description: product.description || '',
+      quantity: product.quantity?.toString() || '',
+      categorie: product.categorie?._id || product.categorie || '',
+      discount: product.discount?.toString() || '0',
     });
+    setImage(product.image ? `${API_BASE_URL}/${product.image}` : null);
     setSelectedProduct(product);
+    setFormErrors({});
     setShowEditModal(true);
   };
 
-  const handleSaveProduct = () => {
-    // Validation
-    if (!productForm.name || !productForm.price || !productForm.category || !productForm.quantity) {
-      Alert.alert('Error', 'Please fill in all required fields');
+  const handleSaveProduct = async () => {
+    if (!validateForm()) {
+      Alert.alert('Validation Error', 'Please fix the errors in the form');
       return;
     }
 
-    if (showAddModal) {
-      // Add new product
-      const newProduct = {
-        id: Date.now().toString(),
-        ...productForm,
+    setUploading(true);
+    try {
+      const productData = {
+        name: productForm.name.trim(),
         price: parseFloat(productForm.price),
-        originalPrice: productForm.originalPrice ? parseFloat(productForm.originalPrice) : null,
+        description: productForm.description.trim(),
         quantity: parseInt(productForm.quantity),
-        rating: 0,
-        reviewCount: 0,
-        sales: 0,
-        createdAt: new Date().toISOString().split('T')[0]
+        categorie: productForm.categorie,
+        discount: productForm.discount ? parseFloat(productForm.discount) : 0
       };
 
-      setProducts(prev => [newProduct, ...prev]);
-      Alert.alert('Success', 'Product added successfully');
-    } else {
-      // Update existing product
-      const updatedProducts = products.map(p =>
-        p.id === selectedProduct.id
-          ? {
-              ...p,
-              ...productForm,
-              price: parseFloat(productForm.price),
-              originalPrice: productForm.originalPrice ? parseFloat(productForm.originalPrice) : null,
-              quantity: parseInt(productForm.quantity)
-            }
-          : p
-      );
+      if (showAddModal) {
+        // Add new product with image
+        await createProduct(productData, image);
+        Alert.alert('Success', 'Product added successfully');
+      } else {
+        // Update existing product
+        await updateProduct(selectedProduct._id, productData);
+        Alert.alert('Success', 'Product updated successfully');
+      }
 
-      setProducts(updatedProducts);
-      Alert.alert('Success', 'Product updated successfully');
+      // Refresh products list
+      await loadProducts();
+      
+      setShowAddModal(false);
+      setShowEditModal(false);
+      resetForm();
+    } catch (error) {
+      console.error('Save product error:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to save product');
+    } finally {
+      setUploading(false);
     }
-
-    setShowAddModal(false);
-    setShowEditModal(false);
-    resetForm();
   };
 
-  const handleDeleteProduct = (product) => {
+  const handleDeleteProduct = async (product) => {
     Alert.alert(
       'Delete Product',
       `Are you sure you want to delete "${product.name}"?`,
@@ -344,27 +413,42 @@ const ProductManagementScreen = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setProducts(prev => prev.filter(p => p.id !== product.id));
-            Alert.alert('Success', 'Product deleted successfully');
+          onPress: async () => {
+            try {
+              await deleteProduct(product._id);
+              Alert.alert('Success', 'Product deleted successfully');
+              await loadProducts();
+            } catch (error) {
+              Alert.alert('Error', error.response?.data?.message || 'Failed to delete product');
+            }
           }
         }
       ]
     );
   };
 
-  const toggleProductStatus = (product) => {
-    const updatedProducts = products.map(p =>
-      p.id === product.id ? { ...p, isActive: !p.isActive } : p
-    );
-    setProducts(updatedProducts);
+  const toggleProductStatus = async (product) => {
+    try {
+      await updateProduct(product._id, {
+        ...product,
+        isActive: !product.isActive
+      });
+      await loadProducts();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update product status');
+    }
   };
 
-  const toggleFeatured = (product) => {
-    const updatedProducts = products.map(p =>
-      p.id === product.id ? { ...p, isFeatured: !p.isFeatured } : p
-    );
-    setProducts(updatedProducts);
+  const toggleFeatured = async (product) => {
+    try {
+      await updateProduct(product._id, {
+        ...product,
+        isFeatured: !product.isFeatured
+      });
+      await loadProducts();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update featured status');
+    }
   };
 
   const getStockStatus = (quantity) => {
@@ -378,7 +462,10 @@ const ProductManagementScreen = () => {
 
     return (
       <View style={styles.productCard}>
-        <Image source={{ uri: item.images[0] }} style={styles.productImage} />
+        <Image 
+          source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/80' }} 
+          style={styles.productImage} 
+        />
         
         <View style={styles.productInfo}>
           <View style={styles.productHeader}>
@@ -399,15 +486,18 @@ const ProductManagementScreen = () => {
             </View>
           </View>
 
-          <Text style={styles.productSku}>SKU: {item.sku}</Text>
-          <Text style={styles.productBrand}>Brand: {item.brand}</Text>
-          <Text style={styles.productCategory}>Category: {item.category}</Text>
+          <Text style={styles.productCategory}>
+            Category: {item.categorie?.name || 'Uncategorized'}
+          </Text>
+          <Text style={styles.productDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
 
           <View style={styles.productDetails}>
             <View style={styles.priceRow}>
               <Text style={styles.productPrice}>${item.price}</Text>
-              {item.originalPrice && (
-                <Text style={styles.originalPrice}>${item.originalPrice}</Text>
+              {item.discount > 0 && (
+                <Text style={styles.discountText}>{item.discount}% off</Text>
               )}
             </View>
             
@@ -419,28 +509,13 @@ const ProductManagementScreen = () => {
             </View>
           </View>
 
-          <View style={styles.productMetrics}>
-            <View style={styles.metric}>
-              <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.metricText}>{item.rating}</Text>
-            </View>
-            <View style={styles.metric}>
-              <Ionicons name="chatbubble-outline" size={14} color="#666" />
-              <Text style={styles.metricText}>{item.reviewCount}</Text>
-            </View>
-            <View style={styles.metric}>
-              <Ionicons name="cart-outline" size={14} color="#666" />
-              <Text style={styles.metricText}>{item.sales}</Text>
-            </View>
-          </View>
-
           <View style={styles.productControls}>
             <TouchableOpacity 
-              style={[styles.statusButton, item.isActive ? styles.activeButton : styles.inactiveButton]}
+              style={[styles.statusButton, item.isActive !== false ? styles.activeButton : styles.inactiveButton]}
               onPress={() => toggleProductStatus(item)}
             >
               <Text style={styles.statusButtonText}>
-                {item.isActive ? 'Active' : 'Inactive'}
+                {item.isActive !== false ? 'Active' : 'Inactive'}
               </Text>
             </TouchableOpacity>
 
@@ -488,16 +563,17 @@ const ProductManagementScreen = () => {
     </TouchableOpacity>
   );
 
-  const renderFormField = (label, value, onChange, placeholder, keyboardType = 'default') => (
+  const renderFormField = (label, value, onChange, placeholder, keyboardType = 'default', error = null) => (
     <View style={styles.formField}>
       <Text style={styles.formLabel}>{label}</Text>
       <TextInput
-        style={styles.formInput}
+        style={[styles.formInput, error && styles.formInputError]}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
         keyboardType={keyboardType}
       />
+      {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 
@@ -527,7 +603,7 @@ const ProductManagementScreen = () => {
           <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search products by name, SKU, or brand..."
+            placeholder="Search products by name or description..."
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -561,7 +637,7 @@ const ProductManagementScreen = () => {
       <FlatList
         data={filteredProducts}
         renderItem={renderProductItem}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item._id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.productsList}
         refreshControl={
@@ -605,34 +681,84 @@ const ProductManagementScreen = () => {
           </View>
 
           <ScrollView style={styles.modalContent}>
-            {renderFormField('Product Name *', productForm.name, 
-              (text) => setProductForm(prev => ({ ...prev, name: text })), 
-              'Enter product name'
-            )}
+            {/* Image Upload Section */}
+            <View style={styles.formField}>
+              <Text style={styles.formLabel}>
+                Product Image {showAddModal && <Text style={styles.required}>*</Text>}
+              </Text>
+              
+              {image ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image source={{ uri: image }} style={styles.imagePreview} />
+                  <TouchableOpacity 
+                    style={styles.removeImageButton}
+                    onPress={removeImage}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#FF6B6B" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.imageUploadContainer}>
+                  <TouchableOpacity 
+                    style={styles.imageUploadButton}
+                    onPress={pickImage}
+                  >
+                    <Ionicons name="image-outline" size={32} color="#666" />
+                    <Text style={styles.imageUploadText}>Choose from Gallery</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.imageUploadButton}
+                    onPress={takePhoto}
+                  >
+                    <Ionicons name="camera-outline" size={32} color="#666" />
+                    <Text style={styles.imageUploadText}>Take Photo</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {formErrors.image && <Text style={styles.errorText}>{formErrors.image}</Text>}
+            </View>
 
-            {renderFormField('SKU *', productForm.sku, 
-              (text) => setProductForm(prev => ({ ...prev, sku: text })), 
-              'Enter SKU'
+            {renderFormField(
+              'Product Name *', 
+              productForm.name, 
+              (text) => setProductForm(prev => ({ ...prev, name: text })), 
+              'Enter product name',
+              'default',
+              formErrors.name
             )}
 
             <View style={styles.formRow}>
               <View style={styles.formHalf}>
-                {renderFormField('Price *', productForm.price, 
+                {renderFormField(
+                  'Price *', 
+                  productForm.price, 
                   (text) => setProductForm(prev => ({ ...prev, price: text })), 
-                  '0.00', 'decimal-pad'
+                  '0.00', 
+                  'decimal-pad',
+                  formErrors.price
                 )}
               </View>
               <View style={styles.formHalf}>
-                {renderFormField('Original Price', productForm.originalPrice, 
-                  (text) => setProductForm(prev => ({ ...prev, originalPrice: text })), 
-                  '0.00', 'decimal-pad'
+                {renderFormField(
+                  'Discount %', 
+                  productForm.discount, 
+                  (text) => setProductForm(prev => ({ ...prev, discount: text })), 
+                  '0', 
+                  'number-pad',
+                  formErrors.discount
                 )}
               </View>
             </View>
 
-            {renderFormField('Quantity *', productForm.quantity, 
+            {renderFormField(
+              'Quantity *', 
+              productForm.quantity, 
               (text) => setProductForm(prev => ({ ...prev, quantity: text })), 
-              '0', 'number-pad'
+              '0', 
+              'number-pad',
+              formErrors.quantity
             )}
 
             <View style={styles.formField}>
@@ -641,48 +767,24 @@ const ProductManagementScreen = () => {
                 <View style={styles.categoryContainer}>
                   {categories.map(category => (
                     <TouchableOpacity
-                      key={category}
+                      key={category._id}
                       style={[
                         styles.categoryButton,
-                        productForm.category === category && styles.selectedCategory
+                        productForm.categorie === category._id && styles.selectedCategory
                       ]}
-                      onPress={() => setProductForm(prev => ({ ...prev, category }))}
+                      onPress={() => setProductForm(prev => ({ ...prev, categorie: category._id }))}
                     >
                       <Text style={[
                         styles.categoryText,
-                        productForm.category === category && styles.selectedCategoryText
+                        productForm.categorie === category._id && styles.selectedCategoryText
                       ]}>
-                        {category}
+                        {category.name}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </ScrollView>
-            </View>
-
-            <View style={styles.formField}>
-              <Text style={styles.formLabel}>Brand</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.categoryContainer}>
-                  {brands.map(brand => (
-                    <TouchableOpacity
-                      key={brand}
-                      style={[
-                        styles.categoryButton,
-                        productForm.brand === brand && styles.selectedCategory
-                      ]}
-                      onPress={() => setProductForm(prev => ({ ...prev, brand }))}
-                    >
-                      <Text style={[
-                        styles.categoryText,
-                        productForm.brand === brand && styles.selectedCategoryText
-                      ]}>
-                        {brand}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
+              {formErrors.categorie && <Text style={styles.errorText}>{formErrors.categorie}</Text>}
             </View>
 
             <View style={styles.formField}>
@@ -698,31 +800,18 @@ const ProductManagementScreen = () => {
               />
             </View>
 
-            <View style={styles.switchContainer}>
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>Active Product</Text>
-                <Switch
-                  value={productForm.isActive}
-                  onValueChange={(value) => setProductForm(prev => ({ ...prev, isActive: value }))}
-                  trackColor={{ false: '#767577', true: '#81b0ff' }}
-                  thumbColor={productForm.isActive ? '#FF6B6B' : '#f4f3f4'}
-                />
-              </View>
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>Featured Product</Text>
-                <Switch
-                  value={productForm.isFeatured}
-                  onValueChange={(value) => setProductForm(prev => ({ ...prev, isFeatured: value }))}
-                  trackColor={{ false: '#767577', true: '#81b0ff' }}
-                  thumbColor={productForm.isFeatured ? '#FFD700' : '#f4f3f4'}
-                />
-              </View>
-            </View>
-
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveProduct}>
-              <Text style={styles.saveButtonText}>
-                {showAddModal ? 'Add Product' : 'Update Product'}
-              </Text>
+            <TouchableOpacity 
+              style={[styles.saveButton, uploading && styles.saveButtonDisabled]} 
+              onPress={handleSaveProduct}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>
+                  {showAddModal ? 'Add Product' : 'Update Product'}
+                </Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -901,17 +990,12 @@ const styles = StyleSheet.create({
     padding: 4,
     marginLeft: 8,
   },
-  productSku: {
-    fontSize: 11,
-    color: '#666',
-    marginBottom: 2,
-  },
-  productBrand: {
-    fontSize: 11,
-    color: '#666',
-    marginBottom: 2,
-  },
   productCategory: {
+    fontSize: 11,
+    color: '#666',
+    marginBottom: 2,
+  },
+  productDescription: {
     fontSize: 11,
     color: '#666',
     marginBottom: 8,
@@ -932,10 +1016,10 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
     marginRight: 6,
   },
-  originalPrice: {
+  discountText: {
     fontSize: 12,
-    color: '#999',
-    textDecorationLine: 'line-through',
+    color: '#4CAF50',
+    fontWeight: '600',
   },
   stockRow: {
     alignItems: 'flex-end',
@@ -948,20 +1032,6 @@ const styles = StyleSheet.create({
   quantity: {
     fontSize: 11,
     color: '#666',
-  },
-  productMetrics: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  metric: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  metricText: {
-    fontSize: 11,
-    color: '#666',
-    marginLeft: 2,
   },
   productControls: {
     flexDirection: 'row',
@@ -1058,6 +1128,9 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 6,
   },
+  required: {
+    color: '#FF6B6B',
+  },
   formInput: {
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -1066,6 +1139,14 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: '#333',
+  },
+  formInputError: {
+    borderColor: '#FF6B6B',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 12,
+    marginTop: 4,
   },
   textArea: {
     height: 100,
@@ -1100,22 +1181,44 @@ const styles = StyleSheet.create({
   selectedCategoryText: {
     color: '#fff',
   },
-  switchContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 20,
-  },
-  switchRow: {
+  // Image Upload Styles
+  imageUploadContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
   },
-  switchLabel: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
+  imageUploadButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 20,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  imageUploadText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  imagePreview: {
+    width: 200,
+    height: 200,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    backgroundColor: '#fff',
+    borderRadius: 12,
   },
   saveButton: {
     backgroundColor: '#FF6B6B',
@@ -1123,6 +1226,9 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     marginBottom: 20,
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#ccc',
   },
   saveButtonText: {
     color: '#fff',

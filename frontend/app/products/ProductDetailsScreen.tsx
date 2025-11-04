@@ -1,158 +1,230 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'expo-router';
+
 import {
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-    Image,
-    TouchableOpacity,
-    Alert,
-    FlatList,
-    ActivityIndicator,
-    Share
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  TouchableOpacity,
+  Alert,
+  FlatList,
+  ActivityIndicator,
+  Share
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
+const API_BASE_URL = 'http://192.168.0.102:5000';
+
 const ProductDetailsScreen = () => {
+  const router = useRouter();
+
+  const { productId } = useLocalSearchParams();
   const [product, setProduct] = useState(null);
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('description');
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const [reviews, setReviews] = useState([]);
 
-  // Static product data
-  const staticProduct = {
-    id: '1',
-    name: 'Wireless Bluetooth Headphones',
-    price: 99.99,
-    originalPrice: 129.99,
-    images: [
-      'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
-      'https://images.unsplash.com/photo-1484704849700-f032a568e944?w=400',
-      'https://images.unsplash.com/photo-1558756520-22cfe5d382ca?w=400',
-      'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=400'
-    ],
-    rating: 4.5,
-    reviewCount: 128,
-    category: 'Electronics',
-    brand: 'SoundMax',
-    isNew: true,
-    isFeatured: true,
-    description: 'Experience premium sound quality with our latest wireless headphones. Featuring advanced noise cancellation technology, these headphones provide crystal-clear audio and exceptional comfort for extended listening sessions.',
-    features: [
-      'Active Noise Cancellation',
-      '30-hour battery life',
-      'Quick charge (3 hours in 15 minutes)',
-      'Bluetooth 5.0 connectivity',
-      'Comfortable over-ear design',
-      'Built-in microphone for calls'
-    ],
-    specifications: {
-      'Battery Life': '30 hours',
-      'Charging Time': '2 hours',
-      'Connectivity': 'Bluetooth 5.0',
-      'Weight': '250g',
-      'Color': 'Matte Black',
-      'Warranty': '1 year'
-    },
-    inStock: true,
-    discount: 23,
-    sku: 'SM-BT001',
-    tags: ['wireless', 'headphones', 'bluetooth', 'noise-cancellation']
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
   };
 
-  // Static related products
-  const staticRelatedProducts = [
-    {
-      id: '7',
-      name: 'Wireless Earbuds Pro',
-      price: 129.99,
-      originalPrice: 159.99,
-      image: 'https://images.unsplash.com/photo-1590658165737-15a047b8b5e0?w=300',
-      rating: 4.6,
-      category: 'Electronics',
-      discount: 19
-    },
-    {
-      id: '3',
-      name: 'Smart Watch Series 5',
-      price: 199.99,
-      originalPrice: 249.99,
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
-      rating: 4.7,
-      category: 'Electronics',
-      discount: 20
-    },
-    {
-      id: '8',
-      name: 'Fitness Tracker Watch',
-      price: 89.99,
-      originalPrice: 119.99,
-      image: 'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=300',
-      rating: 4.0,
-      category: 'Sports',
-      discount: 25
-    },
-    {
-      id: '9',
-      name: 'Portable Speaker',
-      price: 69.99,
-      originalPrice: 89.99,
-      image: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=300',
-      rating: 4.3,
-      category: 'Electronics',
-      discount: 22
+  // API Functions
+  const fetchProductDetails = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/product/getProduct/${productId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching product details:', error);
+      throw error;
     }
-  ];
+  };
 
-  // Static reviews
-  const staticReviews = [
-    {
-      id: '1',
-      user: 'John Smith',
-      rating: 5,
-      date: '2024-01-15',
-      comment: 'Amazing sound quality! The noise cancellation works perfectly. Very comfortable for long listening sessions.',
-      verified: true
-    },
-    {
-      id: '2',
-      user: 'Sarah Johnson',
-      rating: 4,
-      date: '2024-01-10',
-      comment: 'Great headphones, battery life is impressive. Only wish the case was included.',
-      verified: true
-    },
-    {
-      id: '3',
-      user: 'Mike Chen',
-      rating: 5,
-      date: '2024-01-08',
-      comment: 'Best headphones I have ever owned. Worth every penny!',
-      verified: false
-    },
-    {
-      id: '4',
-      user: 'Emily Davis',
-      rating: 4,
-      date: '2024-01-05',
-      comment: 'Comfortable and great sound. The quick charge feature is very convenient.',
-      verified: true
+  const fetchRelatedProducts = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/product/allProduct`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      // Filter related products by category (first 4 products from same category)
+      if (product && response.data) {
+        const related = response.data
+          .filter(p => p._id !== product._id && p.categorie?._id === product.categorie?._id)
+          .slice(0, 4);
+        return related;
+      }
+      return response.data?.slice(0, 4) || [];
+    } catch (error) {
+      console.error('Error fetching related products:', error);
+      return [];
     }
-  ];
+  };
+
+
+  const addToCart = async () => {
+    if (!product) return;
+
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(`${API_BASE_URL}/cart/add/${product._id}`,
+        {
+          quantity: quantity
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.success) {
+        Alert.alert(
+          'Added to Cart',
+          `${quantity} × ${product.name} has been added to your cart`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', response.data.message || 'Failed to add product to cart');
+      }
+
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to add product to cart');
+    }
+  };
+
+  const addToWishlist = async () => {
+    if (!product) return;
+
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(
+        `${API_BASE_URL}/watchlist/toggle/${product._id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.inWishlist) {
+        Alert.alert(
+          'Added to Wishlist',
+          `${product.name} has been added to your wishlist`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Removed from Wishlist',
+          `${product.name} has been removed from your wishlist`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling wishlist:', error);
+      Alert.alert('Error', 'Failed to update wishlist');
+    }
+  };
+
+  const shareProduct = async () => {
+    if (!product) return;
+
+    try {
+      await Share.share({
+        message: `Check out this amazing product: ${product.name} - $${product.price}`,
+        url: product.image ? `${API_BASE_URL}/${product.image}` : ''
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share product');
+    }
+  };
+
+
+
+
+
+
+
+
+  const buyNow = () => {
+    if (!product) return;
+
+    Alert.alert(
+      'Proceed to Checkout',
+      `You are about to purchase ${quantity} × ${product.name}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue', style: 'default', onPress: () => {
+            router.push({
+              pathname: '../checkout/CheckoutScreen',
+              params: {
+                productId: product._id,
+                quantity: quantity
+              }
+            });
+          }
+        }
+      ]
+    );
+  };
+
+
+  const loadProductData = async () => {
+    if (!productId) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const [productData, reviewsData] = await Promise.all([
+        fetchProductDetails(),
+      ]);
+
+      setProduct(productData);
+      setReviews(reviewsData);
+
+      // Load related products after product data is set
+      const relatedData = await fetchRelatedProducts();
+      setRelatedProducts(relatedData);
+    } catch (error) {
+      console.error('Error loading product data:', error);
+      Alert.alert('Error', 'Failed to load product details');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setProduct(staticProduct);
-      setRelatedProducts(staticRelatedProducts);
-      setLoading(false);
-    }, 1000);
-  }, []);
+    if (productId) {
+      loadProductData();
+    }
+  }, [productId]);
 
   const increaseQuantity = () => {
     setQuantity(prev => prev + 1);
@@ -164,65 +236,19 @@ const ProductDetailsScreen = () => {
     }
   };
 
-  const addToCart = () => {
-    if (!product) return;
-    
-    Alert.alert(
-      'Added to Cart',
-      `${quantity} × ${product.name} has been added to your cart`,
-      [{ text: 'OK' }]
-    );
-  };
-
-  const addToWishlist = () => {
-    if (!product) return;
-    
-    Alert.alert(
-      'Added to Wishlist',
-      `${product.name} has been added to your wishlist`,
-      [{ text: 'OK' }]
-    );
-  };
-
-  const shareProduct = async () => {
-    if (!product) return;
-    
-    try {
-      await Share.share({
-        message: `Check out this amazing product: ${product.name} - $${product.price}`,
-        url: product.images[0]
-      });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to share product');
-    }
-  };
-
-  const buyNow = () => {
-    if (!product) return;
-    
-    Alert.alert(
-      'Proceed to Checkout',
-      `You are about to purchase ${quantity} × ${product.name}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Continue', style: 'default' }
-      ]
-    );
-  };
-
   const renderReviewItem = ({ item }) => (
     <View style={styles.reviewItem}>
       <View style={styles.reviewHeader}>
         <View style={styles.reviewUser}>
-          <Text style={styles.reviewUserName}>{item.user}</Text>
-          {item.verified && (
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
-              <Text style={styles.verifiedText}>Verified</Text>
-            </View>
-          )}
+          <Text style={styles.reviewUserName}>{item.user?.username || 'Anonymous'}</Text>
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+            <Text style={styles.verifiedText}>Verified</Text>
+          </View>
         </View>
-        <Text style={styles.reviewDate}>{item.date}</Text>
+        <Text style={styles.reviewDate}>
+          {new Date(item.createdAt).toLocaleDateString()}
+        </Text>
       </View>
       <View style={styles.reviewRating}>
         {[...Array(5)].map((_, index) => (
@@ -240,17 +266,24 @@ const ProductDetailsScreen = () => {
 
   const renderRelatedProduct = ({ item }) => (
     <TouchableOpacity style={styles.relatedProduct}>
-      <Image source={{ uri: item.image }} style={styles.relatedProductImage} />
+      <Image
+        source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }}
+        style={styles.relatedProductImage}
+      />
       <View style={styles.relatedProductInfo}>
         <Text style={styles.relatedProductName} numberOfLines={2}>{item.name}</Text>
         <View style={styles.relatedProductRating}>
           <Ionicons name="star" size={12} color="#FFD700" />
-          <Text style={styles.relatedProductRatingText}>{item.rating}</Text>
+          <Text style={styles.relatedProductRatingText}>
+            {item.rating || 0}
+          </Text>
         </View>
         <View style={styles.relatedProductPrice}>
           <Text style={styles.relatedProductCurrentPrice}>${item.price}</Text>
-          {item.originalPrice > item.price && (
-            <Text style={styles.relatedProductOriginalPrice}>${item.originalPrice}</Text>
+          {item.discount > 0 && (
+            <Text style={styles.relatedProductOriginalPrice}>
+              ${(item.price / (1 - item.discount / 100)).toFixed(2)}
+            </Text>
           )}
         </View>
       </View>
@@ -258,59 +291,64 @@ const ProductDetailsScreen = () => {
   );
 
   const renderStars = (rating) => {
+    const actualRating = rating || 0;
     return (
       <View style={styles.starsContainer}>
         {[...Array(5)].map((_, index) => (
           <Ionicons
             key={index}
-            name={index < Math.floor(rating) ? "star" : "star-outline"}
+            name={index < Math.floor(actualRating) ? "star" : "star-outline"}
             size={16}
             color="#FFD700"
           />
         ))}
-        <Text style={styles.ratingText}>({rating})</Text>
+        <Text style={styles.ratingText}>({actualRating})</Text>
       </View>
     );
   };
+
+  // Calculate average rating
 
   // Render product details content
   const renderProductContent = () => {
     if (!product) return null;
 
+    const productImages = product.image ? [product.image] : [];
+
     return (
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Image Gallery */}
         <View style={styles.imageSection}>
-          <Image 
-            source={{ uri: product.images[selectedImage] }} 
-            style={styles.mainImage} 
+          <Image
+            source={{ uri: productImages[selectedImage] ? `${API_BASE_URL}/${productImages[selectedImage]}` : 'https://via.placeholder.com/400' }}
+            style={styles.mainImage}
           />
-          <View style={styles.imageThumbnails}>
-            {product.images.map((image, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.thumbnail,
-                  selectedImage === index && styles.selectedThumbnail
-                ]}
-                onPress={() => setSelectedImage(index)}
-              >
-                <Image source={{ uri: image }} style={styles.thumbnailImage} />
-              </TouchableOpacity>
-            ))}
-          </View>
+          {productImages.length > 1 && (
+            <View style={styles.imageThumbnails}>
+              {productImages.map((image, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.thumbnail,
+                    selectedImage === index && styles.selectedThumbnail
+                  ]}
+                  onPress={() => setSelectedImage(index)}
+                >
+                  <Image
+                    source={{ uri: `${API_BASE_URL}/${image}` }}
+                    style={styles.thumbnailImage}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Product Info */}
         <View style={styles.productInfo}>
           <View style={styles.productHeader}>
             <View style={styles.brandContainer}>
-              <Text style={styles.brand}>{product.brand}</Text>
-              {product.isNew && (
-                <View style={styles.newBadge}>
-                  <Text style={styles.newBadgeText}>NEW</Text>
-                </View>
-              )}
+              <Text style={styles.brand}>{product.categorie?.name || 'Uncategorized'}</Text>
             </View>
             <TouchableOpacity style={styles.shareButton} onPress={shareProduct}>
               <Ionicons name="share-outline" size={24} color="#666" />
@@ -319,16 +357,14 @@ const ProductDetailsScreen = () => {
 
           <Text style={styles.productName}>{product.name}</Text>
 
-          <View style={styles.ratingContainer}>
-            {renderStars(product.rating)}
-            <Text style={styles.reviewCount}>({product.reviewCount} reviews)</Text>
-          </View>
 
           <View style={styles.priceContainer}>
             <Text style={styles.currentPrice}>${product.price}</Text>
-            {product.originalPrice > product.price && (
+            {product.discount > 0 && (
               <>
-                <Text style={styles.originalPrice}>${product.originalPrice}</Text>
+                <Text style={styles.originalPrice}>
+                  ${(product.price / (1 - product.discount / 100)).toFixed(2)}
+                </Text>
                 <View style={styles.discountBadge}>
                   <Text style={styles.discountText}>{product.discount}% OFF</Text>
                 </View>
@@ -337,26 +373,31 @@ const ProductDetailsScreen = () => {
           </View>
 
           <View style={styles.availability}>
-            <Ionicons 
-              name={product.inStock ? "checkmark-circle" : "close-circle"} 
-              size={20} 
-              color={product.inStock ? "#4CAF50" : "#FF6B6B"} 
+            <Ionicons
+              name={product.quantity > 0 ? "checkmark-circle" : "close-circle"}
+              size={20}
+              color={product.quantity > 0 ? "#4CAF50" : "#FF6B6B"}
             />
             <Text style={[
               styles.availabilityText,
-              { color: product.inStock ? "#4CAF50" : "#FF6B6B" }
+              { color: product.quantity > 0 ? "#4CAF50" : "#FF6B6B" }
             ]}>
-              {product.inStock ? 'In Stock' : 'Out of Stock'}
+              {product.quantity > 0 ? 'In Stock' : 'Out of Stock'}
             </Text>
-            <Text style={styles.sku}>SKU: {product.sku}</Text>
           </View>
+
+          {product.description && (
+            <Text style={styles.productDescription} numberOfLines={3}>
+              {product.description}
+            </Text>
+          )}
         </View>
 
         {/* Quantity Selector */}
         <View style={styles.quantitySection}>
           <Text style={styles.quantityLabel}>Quantity:</Text>
           <View style={styles.quantitySelector}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.quantityButton}
               onPress={decreaseQuantity}
               disabled={quantity <= 1}
@@ -364,43 +405,44 @@ const ProductDetailsScreen = () => {
               <Ionicons name="remove" size={20} color={quantity <= 1 ? "#ccc" : "#333"} />
             </TouchableOpacity>
             <Text style={styles.quantityText}>{quantity}</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.quantityButton}
               onPress={increaseQuantity}
+              disabled={product.quantity === 0}
             >
-              <Ionicons name="add" size={20} color="#333" />
+              <Ionicons name="add" size={20} color={product.quantity === 0 ? "#ccc" : "#333"} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.wishlistButton}
             onPress={addToWishlist}
           >
             <Ionicons name="heart-outline" size={24} color="#FF6B6B" />
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.addToCartButton,
-              !product.inStock && styles.disabledButton
+              (product.quantity === 0) && styles.disabledButton
             ]}
             onPress={addToCart}
-            disabled={!product.inStock}
+            disabled={product.quantity === 0}
           >
             <Ionicons name="cart-outline" size={20} color="#fff" />
             <Text style={styles.addToCartText}>
-              {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+              {product.quantity > 0 ? 'Add to Cart' : 'Out of Stock'}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.buyNowButton,
-              !product.inStock && styles.disabledButton
+              (product.quantity === 0) && styles.disabledButton
             ]}
             onPress={buyNow}
-            disabled={!product.inStock}
+            disabled={product.quantity === 0}
           >
             <Text style={styles.buyNowText}>Buy Now</Text>
           </TouchableOpacity>
@@ -417,30 +459,7 @@ const ProductDetailsScreen = () => {
                 Description
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'features' && styles.activeTab]}
-              onPress={() => setActiveTab('features')}
-            >
-              <Text style={[styles.tabText, activeTab === 'features' && styles.activeTabText]}>
-                Features
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'specifications' && styles.activeTab]}
-              onPress={() => setActiveTab('specifications')}
-            >
-              <Text style={[styles.tabText, activeTab === 'specifications' && styles.activeTabText]}>
-                Specifications
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'reviews' && styles.activeTab]}
-              onPress={() => setActiveTab('reviews')}
-            >
-              <Text style={[styles.tabText, activeTab === 'reviews' && styles.activeTabText]}>
-                Reviews ({staticReviews.length})
-              </Text>
-            </TouchableOpacity>
+
           </ScrollView>
         </View>
 
@@ -448,88 +467,73 @@ const ProductDetailsScreen = () => {
         <View style={styles.tabContent}>
           {activeTab === 'description' && (
             <View style={styles.tabSection}>
-              <Text style={styles.descriptionText}>{product.description}</Text>
-              <View style={styles.tagsContainer}>
-                {product.tags.map((tag, index) => (
-                  <View key={index} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {activeTab === 'features' && (
-            <View style={styles.tabSection}>
-              {product.features.map((feature, index) => (
-                <View key={index} style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                  <Text style={styles.featureText}>{feature}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {activeTab === 'specifications' && (
-            <View style={styles.tabSection}>
-              {Object.entries(product.specifications).map(([key, value], index) => (
-                <View key={index} style={styles.specItem}>
-                  <Text style={styles.specKey}>{key}</Text>
-                  <Text style={styles.specValue}>{value}</Text>
-                </View>
-              ))}
+              <Text style={styles.descriptionText}>
+                {product.description || 'No description available.'}
+              </Text>
             </View>
           )}
 
           {activeTab === 'reviews' && (
             <View style={styles.tabSection}>
-              <View style={styles.reviewsSummary}>
-                <View style={styles.overallRating}>
-                  <Text style={styles.overallRatingNumber}>{product.rating}</Text>
-                  {renderStars(product.rating)}
-                  <Text style={styles.totalReviews}>{product.reviewCount} reviews</Text>
+              {reviews.length > 0 ? (
+                <>
+                  <View style={styles.reviewsSummary}>
+                    <View style={styles.overallRating}>
+                      <Text style={styles.overallRatingNumber}>{averageRating}</Text>
+                      {renderStars(parseFloat(averageRating))}
+                      <Text style={styles.totalReviews}>{reviews.length} reviews</Text>
+                    </View>
+                    <View style={styles.ratingBreakdown}>
+                      {[5, 4, 3, 2, 1].map(rating => {
+                        const count = reviews.filter(r => Math.floor(r.rating) === rating).length;
+                        const percentage = (count / reviews.length) * 100;
+                        return (
+                          <View key={rating} style={styles.ratingBar}>
+                            <Text style={styles.ratingNumber}>{rating}</Text>
+                            <Ionicons name="star" size={16} color="#FFD700" />
+                            <View style={styles.ratingProgressBar}>
+                              <View
+                                style={[styles.ratingProgress, { width: `${percentage}%` }]}
+                              />
+                            </View>
+                            <Text style={styles.ratingCount}>({count})</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                  <FlatList
+                    data={reviews}
+                    renderItem={renderReviewItem}
+                    keyExtractor={item => item._id}
+                    scrollEnabled={false}
+                  />
+                </>
+              ) : (
+                <View style={styles.noReviews}>
+                  <Ionicons name="chatbubble-outline" size={48} color="#ccc" />
+                  <Text style={styles.noReviewsText}>No reviews yet</Text>
+                  <Text style={styles.noReviewsSubtext}>Be the first to review this product</Text>
                 </View>
-                <View style={styles.ratingBreakdown}>
-                  {[5, 4, 3, 2, 1].map(rating => {
-                    const count = staticReviews.filter(r => Math.floor(r.rating) === rating).length;
-                    const percentage = (count / staticReviews.length) * 100;
-                    return (
-                      <View key={rating} style={styles.ratingBar}>
-                        <Text style={styles.ratingNumber}>{rating}</Text>
-                        <Ionicons name="star" size={16} color="#FFD700" />
-                        <View style={styles.ratingProgressBar}>
-                          <View 
-                            style={[styles.ratingProgress, { width: `${percentage}%` }]} 
-                          />
-                        </View>
-                        <Text style={styles.ratingCount}>({count})</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-              <FlatList
-                data={staticReviews}
-                renderItem={renderReviewItem}
-                keyExtractor={item => item.id}
-                scrollEnabled={false}
-              />
+              )}
             </View>
           )}
         </View>
 
         {/* Related Products */}
-        <View style={styles.relatedSection}>
-          <Text style={styles.relatedTitle}>You may also like</Text>
-          <FlatList
-            data={relatedProducts}
-            renderItem={renderRelatedProduct}
-            keyExtractor={item => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.relatedProductsList}
-          />
-        </View>
+        {relatedProducts.length > 0 && (
+          <View style={styles.relatedSection}>
+            <Text style={styles.relatedTitle}>You may also like</Text>
+            <FlatList
+              data={relatedProducts}
+              renderItem={renderRelatedProduct}
+              keyExtractor={item => item._id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.relatedProductsList}
+            />
+          </View>
+        )}
       </ScrollView>
     );
   };
@@ -548,16 +552,9 @@ const ProductDetailsScreen = () => {
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
         <Text style={styles.errorText}>Product not found</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.retryButton}
-          onPress={() => {
-            setLoading(true);
-            setTimeout(() => {
-              setProduct(staticProduct);
-              setRelatedProducts(staticRelatedProducts);
-              setLoading(false);
-            }, 1000);
-          }}
+          onPress={loadProductData}
         >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
@@ -571,6 +568,8 @@ const ProductDetailsScreen = () => {
     </View>
   );
 };
+
+// ... (keep all the same styles from the previous code)
 
 const styles = StyleSheet.create({
   container: {
@@ -663,18 +662,6 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '500',
   },
-  newBadge: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginLeft: 8,
-  },
-  newBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
   shareButton: {
     padding: 5,
   },
@@ -684,6 +671,12 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 10,
     lineHeight: 24,
+  },
+  productDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginTop: 10,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -741,11 +734,6 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     fontSize: 14,
     fontWeight: '500',
-  },
-  sku: {
-    marginLeft: 'auto',
-    fontSize: 12,
-    color: '#999',
   },
   quantitySection: {
     backgroundColor: '#fff',
@@ -862,53 +850,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#666',
-    marginBottom: 15,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  tag: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  tagText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  featureText: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
-  specItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  specKey: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  specValue: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '400',
   },
   reviewsSummary: {
     flexDirection: 'row',
@@ -1005,6 +946,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
+  },
+  noReviews: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  noReviewsText: {
+    fontSize: 18,
+    color: '#666',
+    marginTop: 10,
+  },
+  noReviewsSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 5,
   },
   relatedSection: {
     backgroundColor: '#fff',

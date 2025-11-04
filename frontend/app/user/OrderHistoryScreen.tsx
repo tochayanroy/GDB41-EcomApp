@@ -15,10 +15,15 @@ import {
     TextInput,
     RefreshControl
 } from 'react-native';
+import { useRouter } from 'expo-router';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const OrderHistoryScreen = () => {
+  const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,10 +40,10 @@ const OrderHistoryScreen = () => {
     { id: 'all', label: 'All Orders' },
     { id: 'pending', label: 'Pending' },
     { id: 'confirmed', label: 'Confirmed' },
+    { id: 'processing', label: 'Processing' },
     { id: 'shipped', label: 'Shipped' },
     { id: 'delivered', label: 'Delivered' },
-    { id: 'cancelled', label: 'Cancelled' },
-    { id: 'returned', label: 'Returned' }
+    { id: 'cancelled', label: 'Cancelled' }
   ];
 
   // Sort options
@@ -49,194 +54,62 @@ const OrderHistoryScreen = () => {
     { id: 'price_low', label: 'Lowest Price' }
   ];
 
-  // Static orders data
-  const staticOrders = [
-    {
-      id: 'ORD-001',
-      date: '2024-01-15',
-      status: 'delivered',
-      total: 299.97,
-      items: [
-        {
-          id: '1',
-          name: 'Wireless Bluetooth Headphones',
-          price: 99.99,
-          image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300',
-          quantity: 1,
-          color: 'Black',
-          size: 'Standard'
-        },
-        {
-          id: '3',
-          name: 'Smart Watch Series 5',
-          price: 199.99,
-          image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
-          quantity: 1,
-          color: 'Silver',
-          size: '42mm'
-        }
-      ],
-      shippingAddress: {
-        name: 'John Doe',
-        street: '123 Main Street',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        country: 'United States'
-      },
-      paymentMethod: 'Credit Card',
-      trackingNumber: 'TRK123456789',
-      estimatedDelivery: '2024-01-20',
-      deliveredDate: '2024-01-18'
-    },
-    {
-      id: 'ORD-002',
-      date: '2024-01-10',
-      status: 'shipped',
-      total: 129.99,
-      items: [
-        {
-          id: '7',
-          name: 'Wireless Earbuds Pro',
-          price: 129.99,
-          image: 'https://images.unsplash.com/photo-1590658165737-15a047b8b5e0?w=300',
-          quantity: 1,
-          color: 'White',
-          size: 'Standard'
-        }
-      ],
-      shippingAddress: {
-        name: 'John Doe',
-        street: '123 Main Street',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        country: 'United States'
-      },
-      paymentMethod: 'PayPal',
-      trackingNumber: 'TRK987654321',
-      estimatedDelivery: '2024-01-17'
-    },
-    {
-      id: 'ORD-003',
-      date: '2024-01-05',
-      status: 'pending',
-      total: 44.97,
-      items: [
-        {
-          id: '5',
-          name: 'Designer Coffee Mug Set',
-          price: 14.99,
-          image: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=300',
-          quantity: 3,
-          color: 'Ceramic White',
-          size: '350ml'
-        }
-      ],
-      shippingAddress: {
-        name: 'John Doe',
-        street: '123 Main Street',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        country: 'United States'
-      },
-      paymentMethod: 'Credit Card',
-      estimatedDelivery: '2024-01-12'
-    },
-    {
-      id: 'ORD-004',
-      date: '2023-12-20',
-      status: 'cancelled',
-      total: 199.99,
-      items: [
-        {
-          id: '3',
-          name: 'Smart Watch Series 5',
-          price: 199.99,
-          image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
-          quantity: 1,
-          color: 'Black',
-          size: '46mm'
-        }
-      ],
-      shippingAddress: {
-        name: 'John Doe',
-        street: '123 Main Street',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        country: 'United States'
-      },
-      paymentMethod: 'Credit Card',
-      cancellationReason: 'Changed my mind'
-    },
-    {
-      id: 'ORD-005',
-      date: '2023-12-15',
-      status: 'returned',
-      total: 79.99,
-      items: [
-        {
-          id: '6',
-          name: 'Professional Backpack',
-          price: 79.99,
-          image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300',
-          quantity: 1,
-          color: 'Gray',
-          size: 'Large'
-        }
-      ],
-      shippingAddress: {
-        name: 'John Doe',
-        street: '123 Main Street',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        country: 'United States'
-      },
-      paymentMethod: 'Credit Card',
-      returnReason: 'Product not as described',
-      refundAmount: 79.99,
-      refundDate: '2023-12-22'
-    },
-    {
-      id: 'ORD-006',
-      date: '2023-12-10',
-      status: 'confirmed',
-      total: 159.98,
-      items: [
-        {
-          id: '4',
-          name: 'Premium Perfume Collection',
-          price: 49.99,
-          image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=300',
-          quantity: 2,
-          color: 'Elegant',
-          size: '100ml'
-        },
-        {
-          id: '8',
-          name: 'Fitness Tracker Watch',
-          price: 59.99,
-          image: 'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=300',
-          quantity: 1,
-          color: 'Black',
-          size: 'Standard'
-        }
-      ],
-      shippingAddress: {
-        name: 'John Doe',
-        street: '123 Main Street',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        country: 'United States'
-      },
-      paymentMethod: 'Apple Pay',
-      estimatedDelivery: '2023-12-17'
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
     }
-  ];
+  };
+
+  // API Functions
+  const fetchOrders = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      throw error;
+    }
+  };
+
+  const cancelOrder = async (orderId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.put(`${API_BASE_URL}/orders/${orderId}/cancel`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      throw error;
+    }
+  };
+
+  const reorderItems = async (order) => {
+    try {
+      const token = await getAuthToken();
+      
+      // Add all items from order to cart
+      const addToCartPromises = order.items.map(item => 
+        axios.post(`${API_BASE_URL}/cart/add/${item.product._id}`, 
+          { quantity: item.quantity },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+      );
+      
+      await Promise.all(addToCartPromises);
+      return true;
+    } catch (error) {
+      console.error('Error reordering items:', error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     loadOrders();
@@ -246,20 +119,54 @@ const OrderHistoryScreen = () => {
     applyFiltersAndSort();
   }, [orders, selectedFilter, searchQuery, selectedSort]);
 
-  const loadOrders = () => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setOrders(staticOrders);
-      setFilteredOrders(staticOrders);
+  const loadOrders = async () => {
+    try {
+      const ordersData = await fetchOrders();
+      
+      // Transform API data to match component structure
+      const transformedOrders = ordersData.map(order => ({
+        _id: order._id,
+        id: order.orderNumber || `ORD-${order._id.slice(-6).toUpperCase()}`,
+        date: order.createdAt,
+        status: order.orderStatus,
+        total: order.totalAmount,
+        subtotal: order.subtotal,
+        shippingFee: order.shippingFee,
+        items: order.items?.map(item => ({
+          _id: item._id,
+          product: item.product,
+          name: item.product?.name || 'Product',
+          price: item.price || 0,
+          quantity: item.quantity || 1,
+          image: item.product?.image ? `${API_BASE_URL}/${item.product.image}` : 'https://via.placeholder.com/300',
+          color: 'Standard',
+          size: 'One Size'
+        })) || [],
+        shippingAddress: order.shippingAddress,
+        paymentMethod: order.paymentMethod,
+        trackingNumber: order.trackingNumber || `TRK-${order._id.slice(-8).toUpperCase()}`,
+        estimatedDelivery: calculateEstimatedDelivery(order.createdAt)
+      }));
+
+      setOrders(transformedOrders);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+      Alert.alert('Error', 'Failed to load orders');
+    } finally {
       setLoading(false);
       setRefreshing(false);
-    }, 1500);
+    }
   };
 
   const onRefresh = () => {
     setRefreshing(true);
     loadOrders();
+  };
+
+  const calculateEstimatedDelivery = (orderDate) => {
+    const date = new Date(orderDate);
+    date.setDate(date.getDate() + 7); // Add 7 days for delivery estimate
+    return date.toISOString();
   };
 
   const applyFiltersAndSort = () => {
@@ -300,10 +207,10 @@ const OrderHistoryScreen = () => {
     const colors = {
       pending: '#FFA500',
       confirmed: '#2196F3',
+      processing: '#9C27B0',
       shipped: '#9C27B0',
       delivered: '#4CAF50',
-      cancelled: '#F44336',
-      returned: '#FF9800'
+      cancelled: '#F44336'
     };
     return colors[status] || '#666';
   };
@@ -312,10 +219,10 @@ const OrderHistoryScreen = () => {
     const icons = {
       pending: 'time',
       confirmed: 'checkmark-circle',
+      processing: 'construct',
       shipped: 'cube',
       delivered: 'checkmark-done',
-      cancelled: 'close-circle',
-      returned: 'refresh'
+      cancelled: 'close-circle'
     };
     return icons[status] || 'help';
   };
@@ -346,30 +253,31 @@ const OrderHistoryScreen = () => {
     setOrderModalVisible(true);
   };
 
-  const reorder = (order) => {
-    Alert.alert(
-      'Reorder',
-      `Add all items from order ${order.id} to cart?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reorder',
-          onPress: () => {
-            Alert.alert('Success', 'Items added to cart successfully!');
-          }
-        }
-      ]
-    );
+  const handleReorder = async (order) => {
+    try {
+      await reorderItems(order);
+      Alert.alert('Success', 'All items have been added to your cart!');
+      router.push('/cart');
+    } catch (error) {
+      console.error('Error reordering:', error);
+      Alert.alert('Error', 'Failed to add items to cart. Please try again.');
+    }
   };
 
-  const trackOrder = (order) => {
+  const handleTrackOrder = (order) => {
     if (order.trackingNumber) {
       Alert.alert(
         'Track Order',
         `Tracking number: ${order.trackingNumber}\n\nWould you like to track this order?`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Track', style: 'default' }
+          { 
+            text: 'Track', 
+            onPress: () => {
+              // In a real app, you would open the carrier's tracking page
+              console.log('Track order:', order.trackingNumber);
+            }
+          }
         ]
       );
     } else {
@@ -377,7 +285,7 @@ const OrderHistoryScreen = () => {
     }
   };
 
-  const cancelOrder = (order) => {
+  const handleCancelOrder = async (order) => {
     if (order.status === 'pending' || order.status === 'confirmed') {
       Alert.alert(
         'Cancel Order',
@@ -387,13 +295,15 @@ const OrderHistoryScreen = () => {
           {
             text: 'Yes, Cancel',
             style: 'destructive',
-            onPress: () => {
-              // Update order status
-              const updatedOrders = orders.map(o =>
-                o.id === order.id ? { ...o, status: 'cancelled' } : o
-              );
-              setOrders(updatedOrders);
-              Alert.alert('Order Cancelled', 'Your order has been cancelled successfully.');
+            onPress: async () => {
+              try {
+                await cancelOrder(order._id);
+                Alert.alert('Order Cancelled', 'Your order has been cancelled successfully.');
+                loadOrders(); // Refresh orders list
+              } catch (error) {
+                console.error('Error cancelling order:', error);
+                Alert.alert('Error', error.response?.data?.message || 'Failed to cancel order');
+              }
             }
           }
         ]
@@ -413,7 +323,8 @@ const OrderHistoryScreen = () => {
           {
             text: 'Request Return',
             onPress: () => {
-              Alert.alert('Return Requested', 'Your return request has been submitted.');
+              // Navigate to return process
+              router.push(`/orders/return/${order._id}`);
             }
           }
         ]
@@ -421,6 +332,23 @@ const OrderHistoryScreen = () => {
     } else {
       Alert.alert('Cannot Return', 'This order is not eligible for return.');
     }
+  };
+
+  const contactSupport = () => {
+    Alert.alert(
+      'Contact Support',
+      'Would you like to contact customer support?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Email', 
+          onPress: () => {
+            // Implement email support
+            console.log('Contact support');
+          }
+        }
+      ]
+    );
   };
 
   const renderOrderItem = ({ item }) => (
@@ -441,7 +369,7 @@ const OrderHistoryScreen = () => {
 
       <View style={styles.orderItems}>
         {item.items.slice(0, 2).map((product, index) => (
-          <View key={index} style={styles.orderProduct}>
+          <View key={product._id} style={styles.orderProduct}>
             <Image source={{ uri: product.image }} style={styles.productImage} />
             <View style={styles.productInfo}>
               <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
@@ -457,22 +385,22 @@ const OrderHistoryScreen = () => {
       </View>
 
       <View style={styles.orderFooter}>
-        <Text style={styles.orderTotal}>${item.total.toFixed(2)}</Text>
+        <Text style={styles.orderTotal}>৳{item.total.toFixed(2)}</Text>
         <View style={styles.orderActions}>
           {item.status === 'delivered' && (
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => reorder(item)}
+              onPress={() => handleReorder(item)}
             >
               <Ionicons name="repeat" size={16} color="#FF6B6B" />
               <Text style={styles.actionText}>Reorder</Text>
             </TouchableOpacity>
           )}
           
-          {(item.status === 'shipped' || item.status === 'confirmed') && item.trackingNumber && (
+          {(item.status === 'shipped' || item.status === 'processing') && item.trackingNumber && (
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => trackOrder(item)}
+              onPress={() => handleTrackOrder(item)}
             >
               <Ionicons name="locate" size={16} color="#2196F3" />
               <Text style={styles.actionText}>Track</Text>
@@ -529,7 +457,7 @@ const OrderHistoryScreen = () => {
                     </View>
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Total Amount</Text>
-                      <Text style={styles.totalAmount}>${selectedOrder.total.toFixed(2)}</Text>
+                      <Text style={styles.totalAmount}>৳{selectedOrder.total.toFixed(2)}</Text>
                     </View>
                   </View>
                 </View>
@@ -538,34 +466,42 @@ const OrderHistoryScreen = () => {
                 <View style={styles.detailSection}>
                   <Text style={styles.sectionTitle}>Items ({selectedOrder.items.length})</Text>
                   {selectedOrder.items.map((item, index) => (
-                    <View key={index} style={styles.detailItem}>
+                    <View key={item._id} style={styles.detailItem}>
                       <Image source={{ uri: item.image }} style={styles.detailItemImage} />
                       <View style={styles.detailItemInfo}>
                         <Text style={styles.detailItemName}>{item.name}</Text>
                         <Text style={styles.detailItemAttributes}>
                           {item.color} • {item.size} • Qty: {item.quantity}
                         </Text>
-                        <Text style={styles.detailItemPrice}>${item.price} × {item.quantity}</Text>
+                        <Text style={styles.detailItemPrice}>৳{item.price} × {item.quantity}</Text>
                       </View>
                       <Text style={styles.detailItemTotal}>
-                        ${(item.price * item.quantity).toFixed(2)}
+                        ৳{(item.price * item.quantity).toFixed(2)}
                       </Text>
                     </View>
                   ))}
                 </View>
 
                 {/* Shipping Address */}
-                <View style={styles.detailSection}>
-                  <Text style={styles.sectionTitle}>Shipping Address</Text>
-                  <View style={styles.addressCard}>
-                    <Text style={styles.addressName}>{selectedOrder.shippingAddress.name}</Text>
-                    <Text style={styles.addressText}>{selectedOrder.shippingAddress.street}</Text>
-                    <Text style={styles.addressText}>
-                      {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.zipCode}
-                    </Text>
-                    <Text style={styles.addressText}>{selectedOrder.shippingAddress.country}</Text>
+                {selectedOrder.shippingAddress && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.sectionTitle}>Shipping Address</Text>
+                    <View style={styles.addressCard}>
+                      <Text style={styles.addressName}>{selectedOrder.shippingAddress.fullName}</Text>
+                      <Text style={styles.addressText}>{selectedOrder.shippingAddress.addressLine1}</Text>
+                      {selectedOrder.shippingAddress.addressLine2 && (
+                        <Text style={styles.addressText}>{selectedOrder.shippingAddress.addressLine2}</Text>
+                      )}
+                      <Text style={styles.addressText}>
+                        {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.postalCode}
+                      </Text>
+                      <Text style={styles.addressText}>{selectedOrder.shippingAddress.country}</Text>
+                      {selectedOrder.shippingAddress.phone && (
+                        <Text style={styles.addressText}>Phone: {selectedOrder.shippingAddress.phone}</Text>
+                      )}
+                    </View>
                   </View>
-                </View>
+                )}
 
                 {/* Payment & Shipping */}
                 <View style={styles.detailSection}>
@@ -573,7 +509,9 @@ const OrderHistoryScreen = () => {
                   <View style={styles.infoGrid}>
                     <View style={styles.infoItem}>
                       <Text style={styles.infoLabel}>Payment Method</Text>
-                      <Text style={styles.infoValue}>{selectedOrder.paymentMethod}</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedOrder.paymentMethod === 'card' ? 'Credit/Debit Card' : 'Cash on Delivery'}
+                      </Text>
                     </View>
                     {selectedOrder.trackingNumber && (
                       <View style={styles.infoItem}>
@@ -587,12 +525,6 @@ const OrderHistoryScreen = () => {
                         <Text style={styles.infoValue}>{formatDate(selectedOrder.estimatedDelivery)}</Text>
                       </View>
                     )}
-                    {selectedOrder.deliveredDate && (
-                      <View style={styles.infoItem}>
-                        <Text style={styles.infoLabel}>Delivered On</Text>
-                        <Text style={styles.infoValue}>{formatDate(selectedOrder.deliveredDate)}</Text>
-                      </View>
-                    )}
                   </View>
                 </View>
 
@@ -603,7 +535,7 @@ const OrderHistoryScreen = () => {
                       style={[styles.modalButton, styles.cancelButton]}
                       onPress={() => {
                         setOrderModalVisible(false);
-                        cancelOrder(selectedOrder);
+                        handleCancelOrder(selectedOrder);
                       }}
                     >
                       <Text style={styles.cancelButtonText}>Cancel Order</Text>
@@ -626,7 +558,7 @@ const OrderHistoryScreen = () => {
                     style={[styles.modalButton, styles.reorderButton]}
                     onPress={() => {
                       setOrderModalVisible(false);
-                      reorder(selectedOrder);
+                      handleReorder(selectedOrder);
                     }}
                   >
                     <Text style={styles.reorderButtonText}>Reorder All Items</Text>
@@ -790,7 +722,7 @@ const OrderHistoryScreen = () => {
         <FlatList
           data={filteredOrders}
           renderItem={renderOrderItem}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item._id}
           contentContainerStyle={styles.ordersList}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -827,6 +759,8 @@ const OrderHistoryScreen = () => {
     </View>
   );
 };
+
+// ... (keep all the existing styles from the previous code)
 
 const styles = StyleSheet.create({
   container: {

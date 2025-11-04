@@ -13,8 +13,12 @@ import {
     Alert,
     TextInput
 } from 'react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const CartScreen = () => {
   const [cartItems, setCartItems] = useState([]);
@@ -22,78 +26,172 @@ const CartScreen = () => {
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [updatingQuantity, setUpdatingQuantity] = useState(null);
 
-  // Static cart data
-  const staticCartItems = [
-    {
-      id: '1',
-      productId: '1',
-      name: 'Wireless Bluetooth Headphones',
-      price: 99.99,
-      originalPrice: 129.99,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300',
-      quantity: 1,
-      inStock: true,
-      maxQuantity: 10,
-      color: 'Black',
-      size: 'Standard'
-    },
-    {
-      id: '2',
-      productId: '3',
-      name: 'Smart Watch Series 5',
-      price: 199.99,
-      originalPrice: 249.99,
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
-      quantity: 2,
-      inStock: true,
-      maxQuantity: 5,
-      color: 'Silver',
-      size: '42mm'
-    },
-    {
-      id: '3',
-      productId: '7',
-      name: 'Wireless Earbuds Pro',
-      price: 129.99,
-      originalPrice: 159.99,
-      image: 'https://images.unsplash.com/photo-1590658165737-15a047b8b5e0?w=300',
-      quantity: 1,
-      inStock: false,
-      maxQuantity: 0,
-      color: 'White',
-      size: 'Standard'
-    },
-    {
-      id: '4',
-      productId: '5',
-      name: 'Designer Coffee Mug Set',
-      price: 14.99,
-      originalPrice: 19.99,
-      image: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=300',
-      quantity: 3,
-      inStock: true,
-      maxQuantity: 20,
-      color: 'Ceramic White',
-      size: '350ml'
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
     }
-  ];
+  };
 
-  // Coupon codes
-  const coupons = [
-    { code: 'WELCOME10', discount: 10, type: 'percentage', minAmount: 50 },
-    { code: 'SUMMER25', discount: 25, type: 'percentage', minAmount: 100 },
-    { code: 'FREESHIP', discount: 0, type: 'shipping', minAmount: 30 },
-    { code: 'SAVE15', discount: 15, type: 'percentage', minAmount: 75 }
-  ];
+  // API Functions
+  const fetchCart = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/cart/getCart`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching cart:', error);
+      return null;
+    }
+  };
+
+  const updateCartItemQuantity = async (productId, quantity) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.patch(`${API_BASE_URL}/cart/updateCart/${productId}`, 
+        { quantity },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error updating cart quantity:', error);
+      throw error;
+    }
+  };
+
+  const removeCartItem = async (productId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.delete(`${API_BASE_URL}/cart/removeCart/${productId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error removing cart item:', error);
+      throw error;
+    }
+  };
+
+  const clearCart = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.delete(`${API_BASE_URL}/cart/clear`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+      throw error;
+    }
+  };
+
+  const applyCouponAPI = async (code) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(`${API_BASE_URL}/coupon/apply`, 
+        { code },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error applying coupon:', error);
+      throw error;
+    }
+  };
+
+  // Updated moveToWishlistAPI to use watchlist routes
+  const moveToWishlistAPI = async (productId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(`${API_BASE_URL}/watchlist/addWatchlist/${productId}`, 
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error moving to wishlist:', error);
+      throw error;
+    }
+  };
+
+  // New function to toggle wishlist using the toggle endpoint
+  const toggleWishlistAPI = async (productId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(`${API_BASE_URL}/watchlist/toggle/${productId}`, 
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error toggling wishlist:', error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setCartItems(staticCartItems);
-      setLoading(false);
-    }, 1000);
+    loadCart();
   }, []);
+
+  const loadCart = async () => {
+    setLoading(true);
+    try {
+      const cartData = await fetchCart();
+      if (cartData && cartData.items) {
+        // Transform cart data to match our component structure
+        const transformedItems = cartData.items.map(item => ({
+          id: item._id,
+          productId: item.product?._id,
+          name: item.product?.name,
+          price: item.product?.price,
+          originalPrice: item.product?.price / (1 - (item.product?.discount || 0) / 100),
+          image: item.product?.image,
+          quantity: item.quantity,
+          inStock: item.product?.quantity > 0,
+          maxQuantity: item.product?.quantity || 10,
+          color: 'Default',
+          size: 'Standard'
+        }));
+        setCartItems(transformedItems);
+      } else {
+        setCartItems([]);
+      }
+    } catch (error) {
+      console.error('Error loading cart:', error);
+      Alert.alert('Error', 'Failed to load cart');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Calculate cart totals
   const calculateTotals = () => {
@@ -124,17 +222,26 @@ const CartScreen = () => {
     };
   };
 
-  const updateQuantity = (itemId, newQuantity) => {
+  const updateQuantity = async (itemId, productId, newQuantity) => {
     if (newQuantity < 1) return;
     
-    setCartItems(prevItems =>
-      prevItems.map(item =>
-        item.id === itemId ? { ...item, quantity: newQuantity } : item
-      )
-    );
+    setUpdatingQuantity(itemId);
+    try {
+      await updateCartItemQuantity(productId, newQuantity);
+      setCartItems(prevItems =>
+        prevItems.map(item =>
+          item.id === itemId ? { ...item, quantity: newQuantity } : item
+        )
+      );
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      Alert.alert('Error', 'Failed to update quantity');
+    } finally {
+      setUpdatingQuantity(null);
+    }
   };
 
-  const removeItem = (itemId) => {
+  const removeItem = async (itemId, productId) => {
     Alert.alert(
       'Remove Item',
       'Are you sure you want to remove this item from your cart?',
@@ -143,15 +250,21 @@ const CartScreen = () => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => {
-            setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
+          onPress: async () => {
+            try {
+              await removeCartItem(productId);
+              setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
+            } catch (error) {
+              console.error('Error removing item:', error);
+              Alert.alert('Error', 'Failed to remove item from cart');
+            }
           }
         }
       ]
     );
   };
 
-  const moveToWishlist = (item) => {
+  const moveToWishlist = async (item) => {
     Alert.alert(
       'Move to Wishlist',
       `Move "${item.name}" to your wishlist?`,
@@ -159,47 +272,113 @@ const CartScreen = () => {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Move',
-          onPress: () => {
-            setCartItems(prevItems => prevItems.filter(cartItem => cartItem.id !== item.id));
-            Alert.alert('Success', 'Item moved to wishlist');
+          onPress: async () => {
+            try {
+              // Use the addWatchlist endpoint to add to wishlist
+              await moveToWishlistAPI(item.productId);
+              
+              // Remove from cart after successful addition to wishlist
+              await removeCartItem(item.productId);
+              setCartItems(prevItems => prevItems.filter(cartItem => cartItem.id !== item.id));
+              
+              Alert.alert('Success', 'Item moved to wishlist successfully!');
+            } catch (error) {
+              console.error('Error moving to wishlist:', error);
+              
+              if (error.response?.status === 400 && error.response?.data?.message === 'Product already in watchlist') {
+                Alert.alert(
+                  'Already in Wishlist', 
+                  'This item is already in your wishlist. Removing from cart.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: async () => {
+                        // Still remove from cart even if it's already in wishlist
+                        await removeCartItem(item.productId);
+                        setCartItems(prevItems => prevItems.filter(cartItem => cartItem.id !== item.id));
+                      }
+                    }
+                  ]
+                );
+              } else {
+                Alert.alert('Error', error.response?.data?.message || 'Failed to move item to wishlist');
+              }
+            }
           }
         }
       ]
     );
   };
 
-  const applyCoupon = () => {
+  // New function to quickly add to wishlist without removing from cart
+  const quickAddToWishlist = async (item) => {
+    try {
+      // Use the toggle endpoint for quick wishlist addition
+      const result = await toggleWishlistAPI(item.productId);
+      
+      if (result.inWishlist) {
+        Alert.alert('Added to Wishlist', `${item.name} has been added to your wishlist!`);
+      } else {
+        Alert.alert('Removed from Wishlist', `${item.name} has been removed from your wishlist!`);
+      }
+    } catch (error) {
+      console.error('Error toggling wishlist:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update wishlist');
+    }
+  };
+
+  const applyCoupon = async () => {
     if (!couponCode.trim()) {
       Alert.alert('Error', 'Please enter a coupon code');
       return;
     }
 
     setIsApplyingCoupon(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      const coupon = coupons.find(c => c.code === couponCode.toUpperCase());
-      
-      if (coupon) {
-        const subtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-        
-        if (subtotal >= coupon.minAmount) {
-          setAppliedCoupon(coupon);
-          Alert.alert('Success', `Coupon "${coupon.code}" applied successfully!`);
-        } else {
-          Alert.alert('Error', `Minimum order amount of $${coupon.minAmount} required for this coupon`);
-        }
+    try {
+      const result = await applyCouponAPI(couponCode);
+      if (result.success) {
+        setAppliedCoupon(result.coupon);
+        Alert.alert('Success', `Coupon "${result.coupon.code}" applied successfully!`);
       } else {
-        Alert.alert('Error', 'Invalid coupon code');
+        Alert.alert('Error', result.message || 'Invalid coupon code');
       }
-      
+    } catch (error) {
+      console.error('Error applying coupon:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to apply coupon');
+    } finally {
       setIsApplyingCoupon(false);
-    }, 1000);
+    }
   };
 
   const removeCoupon = () => {
     setAppliedCoupon(null);
     setCouponCode('');
+  };
+
+  const handleClearCart = async () => {
+    if (cartItems.length === 0) return;
+    
+    Alert.alert(
+      'Clear Cart',
+      'Are you sure you want to remove all items from your cart?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await clearCart();
+              setCartItems([]);
+              Alert.alert('Success', 'Cart cleared successfully');
+            } catch (error) {
+              console.error('Error clearing cart:', error);
+              Alert.alert('Error', 'Failed to clear cart');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const proceedToCheckout = () => {
@@ -233,26 +412,12 @@ const CartScreen = () => {
     Alert.alert('Continue Shopping', 'Keep browsing our products!');
   };
 
-  const clearCart = () => {
-    if (cartItems.length === 0) return;
-    
-    Alert.alert(
-      'Clear Cart',
-      'Are you sure you want to remove all items from your cart?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear All',
-          style: 'destructive',
-          onPress: () => setCartItems([])
-        }
-      ]
-    );
-  };
-
   const renderCartItem = ({ item }) => (
     <View style={styles.cartItem}>
-      <Image source={{ uri: item.image }} style={styles.itemImage} />
+      <Image 
+        source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+        style={styles.itemImage} 
+      />
       
       <View style={styles.itemDetails}>
         <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
@@ -269,7 +434,7 @@ const CartScreen = () => {
         <View style={styles.priceContainer}>
           <Text style={styles.currentPrice}>${item.price}</Text>
           {item.originalPrice > item.price && (
-            <Text style={styles.originalPrice}>${item.originalPrice}</Text>
+            <Text style={styles.originalPrice}>${item.originalPrice.toFixed(2)}</Text>
           )}
         </View>
 
@@ -286,14 +451,18 @@ const CartScreen = () => {
                 styles.quantityButton,
                 item.quantity <= 1 && styles.disabledButton
               ]}
-              onPress={() => updateQuantity(item.id, item.quantity - 1)}
-              disabled={item.quantity <= 1}
+              onPress={() => updateQuantity(item.id, item.productId, item.quantity - 1)}
+              disabled={item.quantity <= 1 || updatingQuantity === item.id}
             >
-              <Ionicons 
-                name="remove" 
-                size={16} 
-                color={item.quantity <= 1 ? "#ccc" : "#333"} 
-              />
+              {updatingQuantity === item.id ? (
+                <ActivityIndicator size="small" color="#ccc" />
+              ) : (
+                <Ionicons 
+                  name="remove" 
+                  size={16} 
+                  color={item.quantity <= 1 ? "#ccc" : "#333"} 
+                />
+              )}
             </TouchableOpacity>
             
             <Text style={styles.quantityText}>{item.quantity}</Text>
@@ -303,28 +472,39 @@ const CartScreen = () => {
                 styles.quantityButton,
                 item.quantity >= item.maxQuantity && styles.disabledButton
               ]}
-              onPress={() => updateQuantity(item.id, item.quantity + 1)}
-              disabled={item.quantity >= item.maxQuantity}
+              onPress={() => updateQuantity(item.id, item.productId, item.quantity + 1)}
+              disabled={item.quantity >= item.maxQuantity || updatingQuantity === item.id}
             >
-              <Ionicons 
-                name="add" 
-                size={16} 
-                color={item.quantity >= item.maxQuantity ? "#ccc" : "#333"} 
-              />
+              {updatingQuantity === item.id ? (
+                <ActivityIndicator size="small" color="#ccc" />
+              ) : (
+                <Ionicons 
+                  name="add" 
+                  size={16} 
+                  color={item.quantity >= item.maxQuantity ? "#ccc" : "#333"} 
+                />
+              )}
             </TouchableOpacity>
           </View>
 
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={styles.wishlistButton}
-              onPress={() => moveToWishlist(item)}
+              onPress={() => quickAddToWishlist(item)}
             >
               <Ionicons name="heart-outline" size={18} color="#666" />
             </TouchableOpacity>
             
             <TouchableOpacity 
+              style={styles.moveToWishlistButton}
+              onPress={() => moveToWishlist(item)}
+            >
+              <Ionicons name="heart" size={18} color="#FF6B6B" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
               style={styles.removeButton}
-              onPress={() => removeItem(item.id)}
+              onPress={() => removeItem(item.id, item.productId)}
             >
               <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
             </TouchableOpacity>
@@ -361,20 +541,6 @@ const CartScreen = () => {
         >
           <Text style={styles.continueShoppingText}>Continue Shopping</Text>
         </TouchableOpacity>
-        
-        {/* Recently Viewed Suggestions */}
-        <View style={styles.suggestionsSection}>
-          <Text style={styles.suggestionsTitle}>You might be interested in</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {staticCartItems.slice(0, 3).map(item => (
-              <TouchableOpacity key={item.id} style={styles.suggestionItem}>
-                <Image source={{ uri: item.image }} style={styles.suggestionImage} />
-                <Text style={styles.suggestionName} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.suggestionPrice}>${item.price}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
       </View>
     );
   }
@@ -392,7 +558,7 @@ const CartScreen = () => {
         <View style={styles.cartSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Cart Items</Text>
-            <TouchableOpacity onPress={clearCart}>
+            <TouchableOpacity onPress={handleClearCart}>
               <Text style={styles.clearCartText}>Clear All</Text>
             </TouchableOpacity>
           </View>
@@ -586,52 +752,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 12,
-    marginBottom: 40,
   },
   continueShoppingText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  suggestionsSection: {
-    width: '100%',
-  },
-  suggestionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  suggestionItem: {
-    width: 140,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginRight: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  suggestionImage: {
-    width: '100%',
-    height: 80,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  suggestionName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 4,
-    height: 32,
-  },
-  suggestionPrice: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FF6B6B',
   },
   header: {
     backgroundColor: '#fff',
@@ -769,6 +894,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   wishlistButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  moveToWishlistButton: {
     padding: 8,
     marginRight: 8,
   },

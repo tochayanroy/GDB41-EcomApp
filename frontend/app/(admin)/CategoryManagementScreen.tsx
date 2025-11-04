@@ -16,8 +16,13 @@ import {
     Switch,
     RefreshControl
 } from 'react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 
 const { width } = Dimensions.get('window');
+
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const CategoryManagementScreen = () => {
   const [categories, setCategories] = useState([]);
@@ -29,7 +34,8 @@ const CategoryManagementScreen = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
+  const [uploading, setUploading] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -41,7 +47,7 @@ const CategoryManagementScreen = () => {
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     description: '',
-    image: '',
+    image: null,
     icon: 'cube-outline',
     color: '#FF6B6B',
     isActive: true,
@@ -52,170 +58,6 @@ const CategoryManagementScreen = () => {
     metaDescription: '',
     seoUrl: ''
   });
-
-  // Static categories data
-  const staticCategories = [
-    {
-      id: '1',
-      name: 'Electronics',
-      description: 'Latest gadgets and electronic devices',
-      image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300',
-      icon: 'phone-portrait',
-      color: '#FF6B6B',
-      isActive: true,
-      isFeatured: true,
-      displayOrder: 1,
-      productCount: 156,
-      parentCategory: '',
-      metaTitle: 'Electronics - Latest Gadgets & Devices',
-      metaDescription: 'Shop the latest electronics including smartphones, laptops, headphones and more',
-      seoUrl: 'electronics',
-      createdAt: '2024-01-01',
-      createdBy: 'Admin',
-      views: 12450,
-      sales: 89
-    },
-    {
-      id: '2',
-      name: 'Fashion',
-      description: 'Trendy clothing and accessories for everyone',
-      image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300',
-      icon: 'shirt',
-      color: '#4ECDC4',
-      isActive: true,
-      isFeatured: true,
-      displayOrder: 2,
-      productCount: 289,
-      parentCategory: '',
-      metaTitle: 'Fashion - Trendy Clothing & Accessories',
-      metaDescription: 'Discover the latest fashion trends and styles',
-      seoUrl: 'fashion',
-      createdAt: '2024-01-02',
-      createdBy: 'Admin',
-      views: 18760,
-      sales: 134
-    },
-    {
-      id: '3',
-      name: 'Home & Garden',
-      description: 'Furniture and home decor items',
-      image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300',
-      icon: 'home',
-      color: '#45B7D1',
-      isActive: true,
-      isFeatured: false,
-      displayOrder: 3,
-      productCount: 178,
-      parentCategory: '',
-      metaTitle: 'Home & Garden - Furniture & Decor',
-      metaDescription: 'Beautiful home and garden furniture and decor items',
-      seoUrl: 'home-garden',
-      createdAt: '2024-01-03',
-      createdBy: 'Admin',
-      views: 9560,
-      sales: 67
-    },
-    {
-      id: '4',
-      name: 'Beauty & Health',
-      description: 'Cosmetics and wellness products',
-      image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300',
-      icon: 'color-palette',
-      color: '#96CEB4',
-      isActive: true,
-      isFeatured: true,
-      displayOrder: 4,
-      productCount: 234,
-      parentCategory: '',
-      metaTitle: 'Beauty & Health - Cosmetics & Wellness',
-      metaDescription: 'Premium beauty and health products for your wellness',
-      seoUrl: 'beauty-health',
-      createdAt: '2024-01-04',
-      createdBy: 'Admin',
-      views: 11230,
-      sales: 98
-    },
-    {
-      id: '5',
-      name: 'Sports & Outdoors',
-      description: 'Sports equipment and outdoor gear',
-      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300',
-      icon: 'basketball',
-      color: '#FFEAA7',
-      isActive: true,
-      isFeatured: false,
-      displayOrder: 5,
-      productCount: 167,
-      parentCategory: '',
-      metaTitle: 'Sports & Outdoors - Equipment & Gear',
-      metaDescription: 'Professional sports equipment and outdoor gear',
-      seoUrl: 'sports-outdoors',
-      createdAt: '2024-01-05',
-      createdBy: 'Admin',
-      views: 8760,
-      sales: 45
-    },
-    {
-      id: '6',
-      name: 'Books & Media',
-      description: 'Books, movies, and music for all ages',
-      image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300',
-      icon: 'book',
-      color: '#DDA0DD',
-      isActive: false,
-      isFeatured: false,
-      displayOrder: 6,
-      productCount: 0,
-      parentCategory: '',
-      metaTitle: 'Books & Media - Entertainment',
-      metaDescription: 'Books, movies, music and media entertainment',
-      seoUrl: 'books-media',
-      createdAt: '2024-01-06',
-      createdBy: 'Admin',
-      views: 2340,
-      sales: 0
-    },
-    {
-      id: '7',
-      name: 'Toys & Games',
-      description: 'Toys and entertainment for all ages',
-      image: 'https://images.unsplash.com/photo-1550747534-8aec95df0f61?w=300',
-      icon: 'game-controller',
-      color: '#FFA07A',
-      isActive: true,
-      isFeatured: false,
-      displayOrder: 7,
-      productCount: 198,
-      parentCategory: '',
-      metaTitle: 'Toys & Games - Fun & Entertainment',
-      metaDescription: 'Educational and fun toys and games for all ages',
-      seoUrl: 'toys-games',
-      createdAt: '2024-01-07',
-      createdBy: 'Admin',
-      views: 6540,
-      sales: 32
-    },
-    {
-      id: '8',
-      name: 'Automotive',
-      description: 'Car accessories and parts',
-      image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=300',
-      icon: 'car',
-      color: '#778899',
-      isActive: true,
-      isFeatured: false,
-      displayOrder: 8,
-      productCount: 145,
-      parentCategory: '',
-      metaTitle: 'Automotive - Car Accessories & Parts',
-      metaDescription: 'Quality automotive accessories and car parts',
-      seoUrl: 'automotive',
-      createdAt: '2024-01-08',
-      createdBy: 'Admin',
-      views: 5430,
-      sales: 28
-    }
-  ];
 
   const iconOptions = [
     'phone-portrait', 'shirt', 'home', 'color-palette', 'basketball', 'book',
@@ -231,6 +73,165 @@ const CategoryManagementScreen = () => {
     '#F0E68C', '#E6E6FA', '#FFDAB9', '#B0E0E6', '#FF69B4', '#9370DB'
   ];
 
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  };
+
+  // Request camera and gallery permissions
+  const requestPermissions = async () => {
+    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+    const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
+      Alert.alert('Permission required', 'Sorry, we need camera and gallery permissions to make this work!');
+      return false;
+    }
+    return true;
+  };
+
+  // Image Picker Functions
+  const pickImageFromGallery = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    try {
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setCategoryForm(prev => ({ 
+          ...prev, 
+          image: result.assets[0] 
+        }));
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image from gallery');
+    }
+  };
+
+  const takePhotoWithCamera = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    try {
+      let result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setCategoryForm(prev => ({ 
+          ...prev, 
+          image: result.assets[0] 
+        }));
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const showImagePickerOptions = () => {
+    Alert.alert(
+      'Select Image',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: takePhotoWithCamera,
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: pickImageFromGallery,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const removeSelectedImage = () => {
+    setCategoryForm(prev => ({ ...prev, image: null }));
+  };
+
+  // API Functions
+  const fetchCategories = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/category/getAllCategories`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data.categories || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      Alert.alert('Error', 'Failed to fetch categories');
+      return [];
+    }
+  };
+
+  const createCategory = async (formData) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(`${API_BASE_URL}/category/createCategory`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating category:', error);
+      throw error;
+    }
+  };
+
+  const updateCategory = async (categoryId, formData) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.put(`${API_BASE_URL}/category/update/${categoryId}`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating category:', error);
+      throw error;
+    }
+  };
+
+  const deleteCategory = async (categoryId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.delete(`${API_BASE_URL}/category/delete/${categoryId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     loadCategories();
   }, []);
@@ -240,12 +241,16 @@ const CategoryManagementScreen = () => {
     calculateStats();
   }, [categories, searchQuery, activeFilter]);
 
-  const loadCategories = () => {
+  const loadCategories = async () => {
     setLoading(true);
-    setTimeout(() => {
-      setCategories(staticCategories);
+    try {
+      const categoriesData = await fetchCategories();
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const onRefresh = async () => {
@@ -257,30 +262,25 @@ const CategoryManagementScreen = () => {
   const filterCategories = () => {
     let filtered = categories;
 
-    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(category =>
-        category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        category.description.toLowerCase().includes(searchQuery.toLowerCase())
+        category.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        category.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Filter by status
     switch (activeFilter) {
       case 'active':
-        filtered = filtered.filter(category => category.isActive);
+        filtered = filtered.filter(category => category.isActive !== false);
         break;
       case 'inactive':
-        filtered = filtered.filter(category => !category.isActive);
+        filtered = filtered.filter(category => category.isActive === false);
         break;
       case 'featured':
-        filtered = filtered.filter(category => category.isFeatured);
+        filtered = filtered.filter(category => category.isFeatured === true);
         break;
       case 'empty':
         filtered = filtered.filter(category => category.productCount === 0);
-        break;
-      case 'highSales':
-        filtered = filtered.filter(category => category.sales > 50);
         break;
     }
 
@@ -289,8 +289,8 @@ const CategoryManagementScreen = () => {
 
   const calculateStats = () => {
     const total = categories.length;
-    const active = categories.filter(cat => cat.isActive).length;
-    const featured = categories.filter(cat => cat.isFeatured).length;
+    const active = categories.filter(cat => cat.isActive !== false).length;
+    const featured = categories.filter(cat => cat.isFeatured === true).length;
     const empty = categories.filter(cat => cat.productCount === 0).length;
 
     setStats({ total, active, featured, empty });
@@ -300,7 +300,7 @@ const CategoryManagementScreen = () => {
     setCategoryForm({
       name: '',
       description: '',
-      image: '',
+      image: null,
       icon: 'cube-outline',
       color: '#FF6B6B',
       isActive: true,
@@ -320,76 +320,79 @@ const CategoryManagementScreen = () => {
 
   const handleEditCategory = (category) => {
     setCategoryForm({
-      name: category.name,
-      description: category.description,
-      image: category.image,
-      icon: category.icon,
-      color: category.color,
-      isActive: category.isActive,
-      isFeatured: category.isFeatured,
-      displayOrder: category.displayOrder.toString(),
-      parentCategory: category.parentCategory,
-      metaTitle: category.metaTitle,
-      metaDescription: category.metaDescription,
-      seoUrl: category.seoUrl
+      name: category.name || '',
+      description: category.description || '',
+      image: category.image ? { uri: `${API_BASE_URL}/${category.image}` } : null,
+      icon: category.icon || 'cube-outline',
+      color: category.color || '#FF6B6B',
+      isActive: category.isActive !== false,
+      isFeatured: category.isFeatured === true,
+      displayOrder: category.displayOrder?.toString() || '1',
+      parentCategory: category.parentCategory || '',
+      metaTitle: category.metaTitle || '',
+      metaDescription: category.metaDescription || '',
+      seoUrl: category.seoUrl || ''
     });
     setSelectedCategory(category);
     setShowEditModal(true);
   };
 
-  const handleSaveCategory = () => {
-    // Validation
-    if (!categoryForm.name || !categoryForm.description || !categoryForm.image) {
-      Alert.alert('Error', 'Please fill in all required fields');
+  const handleSaveCategory = async () => {
+    if (!categoryForm.name) {
+      Alert.alert('Error', 'Please fill in category name');
       return;
     }
 
-    if (showAddModal) {
-      // Add new category
-      const newCategory = {
-        id: Date.now().toString(),
-        ...categoryForm,
-        displayOrder: parseInt(categoryForm.displayOrder),
-        productCount: 0,
-        views: 0,
-        sales: 0,
-        createdAt: new Date().toISOString().split('T')[0],
-        createdBy: 'Admin'
-      };
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      
+      // Add text fields
+      formData.append('name', categoryForm.name);
+      formData.append('description', categoryForm.description);
+      formData.append('icon', categoryForm.icon);
+      formData.append('color', categoryForm.color);
+      formData.append('isActive', categoryForm.isActive.toString());
+      formData.append('isFeatured', categoryForm.isFeatured.toString());
+      formData.append('displayOrder', categoryForm.displayOrder);
+      formData.append('parentCategory', categoryForm.parentCategory);
+      formData.append('metaTitle', categoryForm.metaTitle);
+      formData.append('metaDescription', categoryForm.metaDescription);
+      formData.append('seoUrl', categoryForm.seoUrl);
 
-      setCategories(prev => [newCategory, ...prev]);
-      Alert.alert('Success', 'Category added successfully');
-    } else {
-      // Update existing category
-      const updatedCategories = categories.map(cat =>
-        cat.id === selectedCategory.id
-          ? {
-              ...cat,
-              ...categoryForm,
-              displayOrder: parseInt(categoryForm.displayOrder)
-            }
-          : cat
-      );
+      // Add image if selected
+      if (categoryForm.image && categoryForm.image.uri) {
+        // Check if it's a new image (has file extension) or existing image (URL)
+        if (categoryForm.image.uri.startsWith('file:')) {
+          formData.append('image', {
+            uri: categoryForm.image.uri,
+            type: 'image/jpeg',
+            name: `category_${Date.now()}.jpg`
+          });
+        }
+      }
 
-      setCategories(updatedCategories);
-      Alert.alert('Success', 'Category updated successfully');
+      if (showAddModal) {
+        await createCategory(formData);
+        Alert.alert('Success', 'Category added successfully');
+      } else {
+        await updateCategory(selectedCategory._id, formData);
+        Alert.alert('Success', 'Category updated successfully');
+      }
+
+      await loadCategories();
+      setShowAddModal(false);
+      setShowEditModal(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving category:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to save category');
+    } finally {
+      setUploading(false);
     }
-
-    setShowAddModal(false);
-    setShowEditModal(false);
-    resetForm();
   };
 
-  const handleDeleteCategory = (category) => {
-    if (category.productCount > 0) {
-      Alert.alert(
-        'Cannot Delete Category',
-        `This category contains ${category.productCount} products. Please remove all products before deleting the category.`,
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
+  const handleDeleteCategory = async (category) => {
     Alert.alert(
       'Delete Category',
       `Are you sure you want to delete "${category.name}"?`,
@@ -398,27 +401,42 @@ const CategoryManagementScreen = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setCategories(prev => prev.filter(cat => cat.id !== category.id));
-            Alert.alert('Success', 'Category deleted successfully');
+          onPress: async () => {
+            try {
+              await deleteCategory(category._id);
+              Alert.alert('Success', 'Category deleted successfully');
+              await loadCategories();
+            } catch (error) {
+              Alert.alert('Error', error.response?.data?.message || 'Failed to delete category');
+            }
           }
         }
       ]
     );
   };
 
-  const toggleCategoryStatus = (category) => {
-    const updatedCategories = categories.map(cat =>
-      cat.id === category.id ? { ...cat, isActive: !cat.isActive } : cat
-    );
-    setCategories(updatedCategories);
+  const toggleCategoryStatus = async (category) => {
+    try {
+      await updateCategory(category._id, {
+        ...category,
+        isActive: !category.isActive
+      });
+      await loadCategories();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update category status');
+    }
   };
 
-  const toggleFeatured = (category) => {
-    const updatedCategories = categories.map(cat =>
-      cat.id === category.id ? { ...cat, isFeatured: !cat.isFeatured } : cat
-    );
-    setCategories(updatedCategories);
+  const toggleFeatured = async (category) => {
+    try {
+      await updateCategory(category._id, {
+        ...category,
+        isFeatured: !category.isFeatured
+      });
+      await loadCategories();
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update featured status');
+    }
   };
 
   const generateSeoUrl = (name) => {
@@ -428,8 +446,8 @@ const CategoryManagementScreen = () => {
   const renderCategoryGrid = ({ item }) => (
     <View style={styles.categoryCard}>
       <View style={styles.categoryHeader}>
-        <View style={[styles.categoryIcon, { backgroundColor: item.color }]}>
-          <Ionicons name={item.icon} size={24} color="#fff" />
+        <View style={[styles.categoryIcon, { backgroundColor: item.color || '#FF6B6B' }]}>
+          <Ionicons name={item.icon || 'cube-outline'} size={24} color="#fff" />
         </View>
         <View style={styles.categoryActions}>
           <TouchableOpacity 
@@ -447,7 +465,10 @@ const CategoryManagementScreen = () => {
         </View>
       </View>
 
-      <Image source={{ uri: item.image }} style={styles.categoryImage} />
+      <Image 
+        source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+        style={styles.categoryImage} 
+      />
       
       <View style={styles.categoryInfo}>
         <Text style={styles.categoryName} numberOfLines={1}>{item.name}</Text>
@@ -458,41 +479,33 @@ const CategoryManagementScreen = () => {
         <View style={styles.categoryStats}>
           <View style={styles.statItem}>
             <Ionicons name="cube-outline" size={12} color="#666" />
-            <Text style={styles.statText}>{item.productCount} products</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Ionicons name="eye-outline" size={12} color="#666" />
-            <Text style={styles.statText}>{item.views.toLocaleString()}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Ionicons name="cart-outline" size={12} color="#666" />
-            <Text style={styles.statText}>{item.sales}</Text>
+            <Text style={styles.statText}>{item.productCount || 0} products</Text>
           </View>
         </View>
 
         <View style={styles.categoryMeta}>
-          <Text style={styles.orderText}>Order: {item.displayOrder}</Text>
-          <Text style={styles.seoText}>{item.seoUrl}</Text>
+          <Text style={styles.orderText}>Order: {item.displayOrder || 1}</Text>
+          <Text style={styles.seoText}>{item.seoUrl || generateSeoUrl(item.name)}</Text>
         </View>
 
         <View style={styles.categoryControls}>
           <TouchableOpacity 
-            style={[styles.statusButton, item.isActive ? styles.activeButton : styles.inactiveButton]}
+            style={[styles.statusButton, (item.isActive !== false) ? styles.activeButton : styles.inactiveButton]}
             onPress={() => toggleCategoryStatus(item)}
           >
             <Text style={styles.statusButtonText}>
-              {item.isActive ? 'Active' : 'Inactive'}
+              {(item.isActive !== false) ? 'Active' : 'Inactive'}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.featuredButton, item.isFeatured && styles.featuredActive]}
+            style={[styles.featuredButton, (item.isFeatured === true) && styles.featuredActive]}
             onPress={() => toggleFeatured(item)}
           >
             <Ionicons 
-              name={item.isFeatured ? "star" : "star-outline"} 
+              name={(item.isFeatured === true) ? "star" : "star-outline"} 
               size={16} 
-              color={item.isFeatured ? "#FFD700" : "#666"} 
+              color={(item.isFeatured === true) ? "#FFD700" : "#666"} 
             />
           </TouchableOpacity>
         </View>
@@ -503,32 +516,31 @@ const CategoryManagementScreen = () => {
   const renderCategoryList = ({ item }) => (
     <View style={styles.categoryListItem}>
       <View style={styles.listLeft}>
-        <View style={[styles.listIcon, { backgroundColor: item.color }]}>
-          <Ionicons name={item.icon} size={20} color="#fff" />
+        <View style={[styles.listIcon, { backgroundColor: item.color || '#FF6B6B' }]}>
+          <Ionicons name={item.icon || 'cube-outline'} size={20} color="#fff" />
         </View>
-        <Image source={{ uri: item.image }} style={styles.listImage} />
+        <Image 
+          source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+          style={styles.listImage} 
+        />
         <View style={styles.listInfo}>
           <Text style={styles.listName}>{item.name}</Text>
           <Text style={styles.listDescription} numberOfLines={1}>
             {item.description}
           </Text>
           <View style={styles.listStats}>
-            <Text style={styles.listStat}>{item.productCount} products</Text>
-            <Text style={styles.listStat}>•</Text>
-            <Text style={styles.listStat}>{item.views.toLocaleString()} views</Text>
-            <Text style={styles.listStat}>•</Text>
-            <Text style={styles.listStat}>{item.sales} sales</Text>
+            <Text style={styles.listStat}>{item.productCount || 0} products</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.listRight}>
         <View style={styles.listStatus}>
-          {item.isFeatured && (
+          {(item.isFeatured === true) && (
             <Ionicons name="star" size={16} color="#FFD700" />
           )}
-          <Text style={[styles.statusText, { color: item.isActive ? '#4CAF50' : '#FF6B6B' }]}>
-            {item.isActive ? 'Active' : 'Inactive'}
+          <Text style={[styles.statusText, { color: (item.isActive !== false) ? '#4CAF50' : '#FF6B6B' }]}>
+            {(item.isActive !== false) ? 'Active' : 'Inactive'}
           </Text>
         </View>
         <View style={styles.listActions}>
@@ -591,6 +603,36 @@ const CategoryManagementScreen = () => {
         numberOfLines={multiline ? 4 : 1}
         textAlignVertical={multiline ? 'top' : 'center'}
       />
+    </View>
+  );
+
+  const renderImagePickerSection = () => (
+    <View style={styles.formField}>
+      <Text style={styles.formLabel}>Category Image</Text>
+      
+      {categoryForm.image ? (
+        <View style={styles.imagePreviewContainer}>
+          <Image 
+            source={{ uri: categoryForm.image.uri }} 
+            style={styles.imagePreview} 
+          />
+          <TouchableOpacity 
+            style={styles.removeImageButton}
+            onPress={removeSelectedImage}
+          >
+            <Ionicons name="close-circle" size={24} color="#FF6B6B" />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity 
+          style={styles.imagePickerButton}
+          onPress={showImagePickerOptions}
+        >
+          <Ionicons name="camera" size={24} color="#666" />
+          <Text style={styles.imagePickerText}>Select Image</Text>
+          <Text style={styles.imagePickerSubtext}>Tap to choose from gallery or camera</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -662,7 +704,6 @@ const CategoryManagementScreen = () => {
             {renderFilterButton('inactive', 'Inactive', 'close-circle-outline')}
             {renderFilterButton('featured', 'Featured', 'star-outline')}
             {renderFilterButton('empty', 'Empty', 'warning-outline')}
-            {renderFilterButton('highSales', 'Top Selling', 'trending-up-outline')}
           </ScrollView>
         </View>
       </View>
@@ -672,7 +713,7 @@ const CategoryManagementScreen = () => {
         <FlatList
           data={filteredCategories}
           renderItem={renderCategoryGrid}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item._id}
           numColumns={2}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.categoriesGrid}
@@ -684,7 +725,7 @@ const CategoryManagementScreen = () => {
         <FlatList
           data={filteredCategories}
           renderItem={renderCategoryList}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item._id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.categoriesList}
           refreshControl={
@@ -763,15 +804,13 @@ const CategoryManagementScreen = () => {
               'Enter category name', true
             )}
 
-            {renderFormField('Description *', categoryForm.description, 
+            {renderFormField('Description', categoryForm.description, 
               (text) => setCategoryForm(prev => ({ ...prev, description: text })), 
-              'Enter category description', true, true
+              'Enter category description', false, true
             )}
 
-            {renderFormField('Image URL *', categoryForm.image, 
-              (text) => setCategoryForm(prev => ({ ...prev, image: text })), 
-              'Enter image URL', true
-            )}
+            {/* Image Picker Section */}
+            {renderImagePickerSection()}
 
             <View style={styles.formRow}>
               <View style={styles.formHalf}>
@@ -883,10 +922,18 @@ const CategoryManagementScreen = () => {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveCategory}>
-              <Text style={styles.saveButtonText}>
-                {showAddModal ? 'Create Category' : 'Update Category'}
-              </Text>
+            <TouchableOpacity 
+              style={[styles.saveButton, uploading && styles.saveButtonDisabled]} 
+              onPress={handleSaveCategory}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>
+                  {showAddModal ? 'Create Category' : 'Update Category'}
+                </Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -1425,12 +1472,57 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
+  // Image Picker Styles
+  imagePickerButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePickerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  imagePickerSubtext: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  imagePreview: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 2,
+  },
   saveButton: {
     backgroundColor: '#FF6B6B',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
     marginBottom: 20,
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#ccc',
   },
   saveButtonText: {
     color: '#fff',

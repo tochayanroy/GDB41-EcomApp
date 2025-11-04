@@ -19,7 +19,7 @@ import {
 
 const { width, height } = Dimensions.get('window');
 
-const API_BASE_URL = 'http://192.168.0.101:5000'; 
+const API_BASE_URL = 'http://192.168.0.102:5000'; 
 
 const RegisterScreen = () => {
   const router = useRouter();

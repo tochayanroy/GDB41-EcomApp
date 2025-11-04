@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dimensions,
   StyleSheet,
@@ -10,148 +10,217 @@ import {
   Image,
   StatusBar,
   Alert,
-  Share
+  Share,
+  ActivityIndicator
 } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
-const OrderConfirmationScreen = ({ navigation, route }) => {
-  const [isTrackLoading, setIsTrackLoading] = useState(false);
+const OrderConfirmationScreen = () => {
+  const { orderId } = useLocalSearchParams();
+  const router = useRouter();
   
-  const orderData = {
-    orderId: 'ORD-784329',
-    orderDate: new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }),
-    orderTime: new Date().toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    }),
-    status: 'confirmed',
-    estimatedDelivery: 'Dec 28, 2024',
-    shippingAddress: {
-      name: 'John Doe',
-      street: '123 Main Street',
-      city: 'New York',
-      state: 'NY',
-      zipCode: '10001',
-      country: 'United States'
-    },
-    paymentMethod: {
-      type: 'Visa',
-      last4: '4242',
-      amount: 194.61
-    },
-    items: [
-      {
-        id: '1',
-        name: 'Wireless Bluetooth Headphones',
-        price: 99.99,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=150',
-        color: 'Black',
-        size: 'Standard'
-      },
-      {
-        id: '2',
-        name: 'Running Shoes',
-        price: 79.99,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150',
-        color: 'Blue/White',
-        size: 'US 10'
-      },
-      {
-        id: '3',
-        name: 'Smartphone Case',
-        price: 14.99,
-        quantity: 2,
-        image: 'https://images.unsplash.com/photo-1601593346740-925612772716?w=150',
-        color: 'Clear',
-        size: 'iPhone 15'
-      }
-    ],
-    summary: {
-      subtotal: 194.97,
-      shipping: 5.99,
-      tax: 18.65,
-      discount: -25.00,
-      total: 194.61
-    },
-    tracking: {
-      number: 'TRK-784329185',
-      carrier: 'FedEx',
-      status: 'order_placed',
-      steps: [
-        {
-          status: 'order_placed',
-          title: 'Order Placed',
-          description: 'We have received your order',
-          completed: true,
-          current: false,
-          date: 'Today, 2:30 PM'
-        },
-        {
-          status: 'processing',
-          title: 'Processing',
-          description: 'Seller is preparing your order',
-          completed: false,
-          current: true,
-          date: 'Estimated: Today, 6:00 PM'
-        },
-        {
-          status: 'shipped',
-          title: 'Shipped',
-          description: 'Your order is on the way',
-          completed: false,
-          current: false,
-          date: 'Estimated: Dec 24, 2024'
-        },
-        {
-          status: 'delivered',
-          title: 'Delivered',
-          description: 'Your order has been delivered',
-          completed: false,
-          current: false,
-          date: 'Estimated: Dec 28, 2024'
-        }
-      ]
+  const [isTrackLoading, setIsTrackLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [orderData, setOrderData] = useState(null);
+  
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
     }
   };
 
-  const handleTrackOrder = () => {
+  // API Functions
+  const fetchOrderDetails = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/orders/${orderId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching order details:', error);
+      throw error;
+    }
+  };
+
+  const trackOrder = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/orders/${orderId}/tracking`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error tracking order:', error);
+      throw error;
+    }
+  };
+
+  const getOrderStatusSteps = (status) => {
+    const steps = [
+      {
+        status: 'pending',
+        title: 'Order Placed',
+        description: 'We have received your order',
+        completed: true,
+        current: status === 'pending',
+        date: 'Today'
+      },
+      {
+        status: 'confirmed',
+        title: 'Confirmed',
+        description: 'Order has been confirmed',
+        completed: ['confirmed', 'processing', 'shipped', 'delivered'].includes(status),
+        current: status === 'confirmed',
+        date: 'Today'
+      },
+      {
+        status: 'processing',
+        title: 'Processing',
+        description: 'Seller is preparing your order',
+        completed: ['processing', 'shipped', 'delivered'].includes(status),
+        current: status === 'processing',
+        date: 'Estimated: Today'
+      },
+      {
+        status: 'shipped',
+        title: 'Shipped',
+        description: 'Your order is on the way',
+        completed: ['shipped', 'delivered'].includes(status),
+        current: status === 'shipped',
+        date: 'Estimated: Tomorrow'
+      },
+      {
+        status: 'delivered',
+        title: 'Delivered',
+        description: 'Your order has been delivered',
+        completed: status === 'delivered',
+        current: status === 'delivered',
+        date: 'Delivered'
+      }
+    ];
+    return steps;
+  };
+
+  const calculateEstimatedDelivery = (orderDate) => {
+    const date = new Date(orderDate);
+    date.setDate(date.getDate() + 7); // Add 7 days for delivery estimate
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  useEffect(() => {
+    loadOrderData();
+  }, [orderId]);
+
+  const loadOrderData = async () => {
+    try {
+      const orderDetails = await fetchOrderDetails();
+      
+      // Transform API data to match component structure
+      const transformedData = {
+        _id: orderDetails._id,
+        orderNumber: orderDetails.orderNumber || `ORD-${orderDetails._id.slice(-6).toUpperCase()}`,
+        orderDate: new Date(orderDetails.createdAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        orderTime: new Date(orderDetails.createdAt).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        status: orderDetails.orderStatus || 'pending',
+        estimatedDelivery: calculateEstimatedDelivery(orderDetails.createdAt),
+        shippingAddress: orderDetails.shippingAddress || {},
+        paymentMethod: {
+          type: orderDetails.paymentMethod === 'card' ? 'Credit Card' : 'Cash on Delivery',
+          last4: orderDetails.paymentMethod === 'card' ? '4242' : 'COD',
+          amount: orderDetails.totalAmount || 0
+        },
+        items: orderDetails.items?.map(item => ({
+          _id: item._id,
+          name: item.product?.name || 'Product',
+          price: item.price || 0,
+          quantity: item.quantity || 1,
+          image: item.product?.image ? `${API_BASE_URL}/${item.product.image}` : 'https://via.placeholder.com/150',
+          color: 'Standard',
+          size: 'One Size'
+        })) || [],
+        summary: {
+          subtotal: orderDetails.subtotal || 0,
+          shipping: orderDetails.shippingFee || 0,
+          tax: (orderDetails.subtotal || 0) * 0.08, // 8% tax
+          discount: 0,
+          total: orderDetails.totalAmount || 0
+        },
+        tracking: {
+          number: `TRK-${orderDetails._id.slice(-8).toUpperCase()}`,
+          carrier: 'Standard Shipping',
+          status: orderDetails.orderStatus || 'pending',
+          steps: getOrderStatusSteps(orderDetails.orderStatus)
+        }
+      };
+
+      setOrderData(transformedData);
+    } catch (error) {
+      console.error('Error loading order data:', error);
+      Alert.alert('Error', 'Failed to load order details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTrackOrder = async () => {
     setIsTrackLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsTrackLoading(false);
+    try {
+      const trackingInfo = await trackOrder();
       Alert.alert(
-        'Tracking Started',
-        `You can track your order #${orderData.orderId} using the tracking number: ${orderData.tracking.number}`,
+        'Tracking Information',
+        `You can track your order #${orderData.orderNumber} using the tracking number: ${orderData.tracking.number}`,
         [{ text: 'OK' }]
       );
-    }, 1500);
+    } catch (error) {
+      console.error('Error tracking order:', error);
+      Alert.alert(
+        'Tracking Information',
+        `Tracking number: ${orderData.tracking.number}\nCarrier: ${orderData.tracking.carrier}`,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsTrackLoading(false);
+    }
   };
 
   const handleContinueShopping = () => {
-    // navigation.navigate('Home');
-    Alert.alert('Continue Shopping', 'Navigating to home screen...');
+    router.replace('/');
   };
 
   const handleViewOrderDetails = () => {
-    // navigation.navigate('OrderDetails', { orderId: orderData.orderId });
-    Alert.alert('Order Details', `Viewing details for order ${orderData.orderId}`);
+    router.push(`/orders/${orderId}`);
   };
 
   const handleShareOrder = async () => {
+    if (!orderData) return;
+    
     try {
-      const message = `I just placed an order on ShopEasy! 🎉\n\nOrder ID: ${orderData.orderId}\nTotal: $${orderData.summary.total}\nExpected Delivery: ${orderData.estimatedDelivery}\n\nTrack my order: ${orderData.tracking.number}`;
+      const message = `I just placed an order! 🎉\n\nOrder ID: ${orderData.orderNumber}\nTotal: ৳${orderData.summary.total}\nExpected Delivery: ${orderData.estimatedDelivery}\n\nTrack my order: ${orderData.tracking.number}`;
       
       await Share.share({
         message: message,
-        title: 'My ShopEasy Order'
+        title: 'My Order Confirmation'
       });
     } catch (error) {
       Alert.alert('Error', 'Failed to share order details');
@@ -161,17 +230,22 @@ const OrderConfirmationScreen = ({ navigation, route }) => {
   const handleContactSupport = () => {
     Alert.alert(
       'Contact Support',
-      'Would you like to call or email our support team?',
+      'Would you like to contact our support team?',
       [
-        { text: 'Call Support', onPress: () => Alert.alert('Call', 'Calling support...') },
-        { text: 'Email Support', onPress: () => Alert.alert('Email', 'Opening email...') },
+        { 
+          text: 'Email Support', 
+          onPress: () => {
+            // Implement email support
+            Alert.alert('Email', 'support@example.com');
+          } 
+        },
         { text: 'Cancel', style: 'cancel' }
       ]
     );
   };
 
   const renderOrderItem = (item) => (
-    <View key={item.id} style={styles.orderItem}>
+    <View key={item._id} style={styles.orderItem}>
       <Image source={{ uri: item.image }} style={styles.itemImage} />
       <View style={styles.itemDetails}>
         <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
@@ -179,12 +253,12 @@ const OrderConfirmationScreen = ({ navigation, route }) => {
           {item.color} • {item.size}
         </Text>
         <Text style={styles.itemPrice}>
-          ${item.price} × {item.quantity}
+          ৳{item.price} × {item.quantity}
         </Text>
       </View>
       <View style={styles.itemTotal}>
         <Text style={styles.itemTotalText}>
-          ${(item.price * item.quantity).toFixed(2)}
+          ৳{(item.price * item.quantity).toFixed(2)}
         </Text>
       </View>
     </View>
@@ -221,6 +295,27 @@ const OrderConfirmationScreen = ({ navigation, route }) => {
     </View>
   );
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FF6B6B" />
+        <Text style={styles.loadingText}>Loading order details...</Text>
+      </View>
+    );
+  }
+
+  if (!orderData) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="alert-circle-outline" size={64} color="#FF6B6B" />
+        <Text style={styles.errorText}>Failed to load order details</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadOrderData}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -240,7 +335,7 @@ const OrderConfirmationScreen = ({ navigation, route }) => {
           </Text>
           <View style={styles.orderIdContainer}>
             <Text style={styles.orderIdLabel}>Order ID:</Text>
-            <Text style={styles.orderId}> {orderData.orderId}</Text>
+            <Text style={styles.orderId}> {orderData.orderNumber}</Text>
           </View>
           <Text style={styles.orderDate}>
             {orderData.orderDate} at {orderData.orderTime}
@@ -272,43 +367,51 @@ const OrderConfirmationScreen = ({ navigation, route }) => {
           <Text style={styles.sectionTitle}>Order Summary</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${orderData.summary.subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>৳{orderData.summary.subtotal.toFixed(2)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Shipping</Text>
-            <Text style={styles.summaryValue}>${orderData.summary.shipping.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>৳{orderData.summary.shipping.toFixed(2)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tax</Text>
-            <Text style={styles.summaryValue}>${orderData.summary.tax.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>৳{orderData.summary.tax.toFixed(2)}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Discount</Text>
-            <Text style={[styles.summaryValue, styles.discountValue]}>
-              -${Math.abs(orderData.summary.discount).toFixed(2)}
-            </Text>
-          </View>
+          {orderData.summary.discount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Discount</Text>
+              <Text style={[styles.summaryValue, styles.discountValue]}>
+                -৳{Math.abs(orderData.summary.discount).toFixed(2)}
+              </Text>
+            </View>
+          )}
           <View style={[styles.summaryRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${orderData.summary.total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>৳{orderData.summary.total.toFixed(2)}</Text>
           </View>
         </View>
 
         {/* Shipping Address */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Shipping Address</Text>
-          <View style={styles.addressCard}>
-            <Ionicons name="location-outline" size={20} color="#666" />
-            <View style={styles.addressDetails}>
-              <Text style={styles.addressName}>{orderData.shippingAddress.name}</Text>
-              <Text style={styles.addressStreet}>{orderData.shippingAddress.street}</Text>
-              <Text style={styles.addressCity}>
-                {orderData.shippingAddress.city}, {orderData.shippingAddress.state} {orderData.shippingAddress.zipCode}
-              </Text>
-              <Text style={styles.addressCountry}>{orderData.shippingAddress.country}</Text>
+        {orderData.shippingAddress && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Shipping Address</Text>
+            <View style={styles.addressCard}>
+              <Ionicons name="location-outline" size={20} color="#666" />
+              <View style={styles.addressDetails}>
+                <Text style={styles.addressName}>{orderData.shippingAddress.fullName}</Text>
+                <Text style={styles.addressStreet}>{orderData.shippingAddress.addressLine1}</Text>
+                {orderData.shippingAddress.addressLine2 && (
+                  <Text style={styles.addressStreet}>{orderData.shippingAddress.addressLine2}</Text>
+                )}
+                <Text style={styles.addressCity}>
+                  {orderData.shippingAddress.city}, {orderData.shippingAddress.state} {orderData.shippingAddress.postalCode}
+                </Text>
+                <Text style={styles.addressCountry}>{orderData.shippingAddress.country}</Text>
+                <Text style={styles.addressPhone}>Phone: {orderData.shippingAddress.phone}</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Payment Method */}
         <View style={styles.section}>
@@ -319,7 +422,7 @@ const OrderConfirmationScreen = ({ navigation, route }) => {
               <Text style={styles.paymentType}>{orderData.paymentMethod.type}</Text>
               <Text style={styles.paymentNumber}>•••• {orderData.paymentMethod.last4}</Text>
             </View>
-            <Text style={styles.paymentAmount}>${orderData.paymentMethod.amount.toFixed(2)}</Text>
+            <Text style={styles.paymentAmount}>৳{orderData.paymentMethod.amount.toFixed(2)}</Text>
           </View>
         </View>
 
@@ -407,6 +510,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 20,
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
@@ -612,6 +751,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   addressCountry: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  addressPhone: {
     fontSize: 14,
     color: '#666',
   },

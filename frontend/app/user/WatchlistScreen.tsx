@@ -12,10 +12,15 @@ import {
     ActivityIndicator,
     Alert,
     Modal,
-    TextInput
+    TextInput,
+    RefreshControl
 } from 'react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const WatchlistScreen = () => {
   const [watchlistItems, setWatchlistItems] = useState([]);
@@ -25,112 +30,7 @@ const WatchlistScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredItems, setFilteredItems] = useState([]);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-
-  // Static watchlist data
-  const staticWatchlistItems = [
-    {
-      id: '1',
-      productId: '1',
-      name: 'Wireless Bluetooth Headphones',
-      price: 99.99,
-      originalPrice: 129.99,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300',
-      rating: 4.5,
-      reviewCount: 128,
-      category: 'Electronics',
-      inStock: true,
-      discount: 23,
-      addedDate: '2024-01-15',
-      color: 'Black',
-      size: 'Standard',
-      isOnSale: true
-    },
-    {
-      id: '2',
-      productId: '3',
-      name: 'Smart Watch Series 5',
-      price: 199.99,
-      originalPrice: 249.99,
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
-      rating: 4.7,
-      reviewCount: 256,
-      category: 'Electronics',
-      inStock: true,
-      discount: 20,
-      addedDate: '2024-01-12',
-      color: 'Silver',
-      size: '42mm',
-      isOnSale: false
-    },
-    {
-      id: '3',
-      productId: '7',
-      name: 'Wireless Earbuds Pro',
-      price: 129.99,
-      originalPrice: 159.99,
-      image: 'https://images.unsplash.com/photo-1590658165737-15a047b8b5e0?w=300',
-      rating: 4.6,
-      reviewCount: 203,
-      category: 'Electronics',
-      inStock: false,
-      discount: 19,
-      addedDate: '2024-01-10',
-      color: 'White',
-      size: 'Standard',
-      isOnSale: true
-    },
-    {
-      id: '4',
-      productId: '11',
-      name: 'Gaming Laptop Pro',
-      price: 1299.99,
-      originalPrice: 1499.99,
-      image: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=300',
-      rating: 4.8,
-      reviewCount: 89,
-      category: 'Electronics',
-      inStock: true,
-      discount: 13,
-      addedDate: '2024-01-08',
-      color: 'Black',
-      size: '15.6"',
-      isOnSale: false
-    },
-    {
-      id: '5',
-      productId: '6',
-      name: 'Professional Backpack',
-      price: 59.99,
-      originalPrice: 79.99,
-      image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300',
-      rating: 4.4,
-      reviewCount: 156,
-      category: 'Fashion',
-      inStock: true,
-      discount: 25,
-      addedDate: '2024-01-05',
-      color: 'Gray',
-      size: 'Large',
-      isOnSale: true
-    },
-    {
-      id: '6',
-      productId: '12',
-      name: 'DSLR Camera Bundle',
-      price: 899.99,
-      originalPrice: 1099.99,
-      image: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=300',
-      rating: 4.4,
-      reviewCount: 67,
-      category: 'Electronics',
-      inStock: true,
-      discount: 18,
-      addedDate: '2024-01-03',
-      color: 'Black',
-      size: 'Standard',
-      isOnSale: false
-    }
-  ];
+  const [refreshing, setRefreshing] = useState(false);
 
   // Sort options
   const sortOptions = [
@@ -142,14 +42,152 @@ const WatchlistScreen = () => {
     { id: 'discount', label: 'Biggest Discount', icon: 'pricetag' }
   ];
 
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  };
+
+  // API Functions - Updated to match your watchlist routes
+  const fetchWatchlist = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/watchlist`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching watchlist:', error);
+      throw error;
+    }
+  };
+
+  const removeFromWatchlistAPI = async (productId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.delete(`${API_BASE_URL}/watchlist/deleteWatchlist/${productId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error removing from watchlist:', error);
+      throw error;
+    }
+  };
+
+  const toggleWatchlistAPI = async (productId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(`${API_BASE_URL}/watchlist/toggle/${productId}`, 
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error toggling watchlist:', error);
+      throw error;
+    }
+  };
+
+  const addToCartAPI = async (productId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(`${API_BASE_URL}/cart/add/${productId}`, 
+        { quantity: 1 },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      throw error;
+    }
+  };
+
+  const clearWatchlistAPI = async () => {
+    try {
+      const token = await getAuthToken();
+      // Since there's no clear all endpoint, we'll remove items one by one
+      const watchlist = await fetchWatchlist();
+      if (watchlist && watchlist.length > 0) {
+        const deletePromises = watchlist.map(item => 
+          removeFromWatchlistAPI(item.product?._id || item.product)
+        );
+        await Promise.all(deletePromises);
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('Error clearing watchlist:', error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setWatchlistItems(staticWatchlistItems);
-      setFilteredItems(staticWatchlistItems);
-      setLoading(false);
-    }, 1000);
+    loadWatchlist();
   }, []);
+
+  const loadWatchlist = async () => {
+    setLoading(true);
+    try {
+      const watchlistData = await fetchWatchlist();
+      console.log('Watchlist API Response:', watchlistData);
+      
+      if (watchlistData && Array.isArray(watchlistData)) {
+        // Transform API response to match our component structure
+        const transformedItems = watchlistData.map(item => {
+          const product = item.product || item;
+          return {
+            id: item._id || product._id,
+            productId: product._id,
+            name: product.name,
+            price: product.price,
+            originalPrice: product.price / (1 - (product.discount || 0) / 100),
+            image: product.image,
+            rating: product.rating || 4.0,
+            reviewCount: product.reviewCount || 0,
+            category: product.categorie?.name || product.category || 'Uncategorized',
+            inStock: product.quantity > 0,
+            discount: product.discount || 0,
+            addedDate: item.addedAt || new Date().toISOString(),
+            color: 'Default',
+            size: 'Standard',
+            isOnSale: product.discount > 0
+          };
+        });
+        setWatchlistItems(transformedItems);
+        setFilteredItems(transformedItems);
+      } else {
+        setWatchlistItems([]);
+        setFilteredItems([]);
+      }
+    } catch (error) {
+      console.error('Error loading watchlist:', error);
+      Alert.alert('Error', 'Failed to load watchlist');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadWatchlist();
+  };
 
   useEffect(() => {
     // Apply search filter
@@ -190,7 +228,7 @@ const WatchlistScreen = () => {
     setFilteredItems(filtered);
   }, [searchQuery, selectedSort, watchlistItems]);
 
-  const removeFromWatchlist = (itemId) => {
+  const removeFromWatchlist = async (itemId, productId) => {
     Alert.alert(
       'Remove from Watchlist',
       'Are you sure you want to remove this item from your watchlist?',
@@ -199,16 +237,36 @@ const WatchlistScreen = () => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => {
-            setWatchlistItems(prev => prev.filter(item => item.id !== itemId));
-            Alert.alert('Removed', 'Item removed from watchlist');
+          onPress: async () => {
+            try {
+              await removeFromWatchlistAPI(productId);
+              setWatchlistItems(prev => prev.filter(item => item.id !== itemId));
+              Alert.alert('Removed', 'Item removed from watchlist');
+            } catch (error) {
+              console.error('Error removing from watchlist:', error);
+              Alert.alert('Error', 'Failed to remove item from watchlist');
+            }
           }
         }
       ]
     );
   };
 
-  const moveToCart = (item) => {
+  // Updated to use toggle endpoint for quick removal
+  const quickRemoveFromWatchlist = async (itemId, productId) => {
+    try {
+      const result = await toggleWatchlistAPI(productId);
+      if (!result.inWishlist) {
+        setWatchlistItems(prev => prev.filter(item => item.id !== itemId));
+        Alert.alert('Removed', 'Item removed from watchlist');
+      }
+    } catch (error) {
+      console.error('Error removing from watchlist:', error);
+      Alert.alert('Error', 'Failed to remove item from watchlist');
+    }
+  };
+
+  const moveToCart = async (item) => {
     if (!item.inStock) {
       Alert.alert('Out of Stock', 'This item is currently out of stock.');
       return;
@@ -221,17 +279,24 @@ const WatchlistScreen = () => {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Add to Cart',
-          onPress: () => {
-            // Remove from watchlist and add to cart
-            setWatchlistItems(prev => prev.filter(watchlistItem => watchlistItem.id !== item.id));
-            Alert.alert('Success', 'Item added to cart');
+          onPress: async () => {
+            try {
+              await addToCartAPI(item.productId);
+              // Remove from watchlist after adding to cart
+              await removeFromWatchlistAPI(item.productId);
+              setWatchlistItems(prev => prev.filter(watchlistItem => watchlistItem.id !== item.id));
+              Alert.alert('Success', 'Item added to cart');
+            } catch (error) {
+              console.error('Error moving to cart:', error);
+              Alert.alert('Error', 'Failed to add item to cart');
+            }
           }
         }
       ]
     );
   };
 
-  const clearWatchlist = () => {
+  const clearWatchlist = async () => {
     if (watchlistItems.length === 0) return;
 
     Alert.alert(
@@ -242,7 +307,17 @@ const WatchlistScreen = () => {
         {
           text: 'Clear All',
           style: 'destructive',
-          onPress: () => setWatchlistItems([])
+          onPress: async () => {
+            try {
+              await clearWatchlistAPI();
+              setWatchlistItems([]);
+              setFilteredItems([]);
+              Alert.alert('Success', 'Watchlist cleared successfully');
+            } catch (error) {
+              console.error('Error clearing watchlist:', error);
+              Alert.alert('Error', 'Failed to clear watchlist');
+            }
+          }
         }
       ]
     );
@@ -274,17 +349,15 @@ const WatchlistScreen = () => {
   const renderGridItem = ({ item }) => (
     <View style={styles.gridItem}>
       <View style={styles.itemImageContainer}>
-        <Image source={{ uri: item.image }} style={styles.gridItemImage} />
+        <Image 
+          source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+          style={styles.gridItemImage} 
+        />
         
         {/* Badges */}
         {item.discount > 0 && (
           <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>{item.discount}% OFF</Text>
-          </View>
-        )}
-        {item.isOnSale && (
-          <View style={styles.saleBadge}>
-            <Text style={styles.saleText}>SALE</Text>
+            <Text style={styles.discountText}>{Math.round(item.discount)}% OFF</Text>
           </View>
         )}
         {!item.inStock && (
@@ -298,12 +371,17 @@ const WatchlistScreen = () => {
           <TouchableOpacity 
             style={styles.actionButton}
             onPress={() => moveToCart(item)}
+            disabled={!item.inStock}
           >
-            <Ionicons name="cart-outline" size={16} color="#fff" />
+            <Ionicons 
+              name="cart-outline" 
+              size={16} 
+              color={item.inStock ? "#fff" : "#ccc"} 
+            />
           </TouchableOpacity>
           <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => removeFromWatchlist(item.id)}
+            style={[styles.actionButton, styles.removeButton]}
+            onPress={() => quickRemoveFromWatchlist(item.id, item.productId)}
           >
             <Ionicons name="heart" size={16} color="#FF6B6B" />
           </TouchableOpacity>
@@ -328,7 +406,7 @@ const WatchlistScreen = () => {
         <View style={styles.priceContainer}>
           <Text style={styles.currentPrice}>${item.price}</Text>
           {item.originalPrice > item.price && (
-            <Text style={styles.originalPrice}>${item.originalPrice}</Text>
+            <Text style={styles.originalPrice}>${item.originalPrice.toFixed(2)}</Text>
           )}
         </View>
 
@@ -349,11 +427,14 @@ const WatchlistScreen = () => {
   const renderListItem = ({ item }) => (
     <View style={styles.listItem}>
       <View style={styles.listImageContainer}>
-        <Image source={{ uri: item.image }} style={styles.listItemImage} />
+        <Image 
+          source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+          style={styles.listItemImage} 
+        />
         
         {item.discount > 0 && (
           <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>{item.discount}% OFF</Text>
+            <Text style={styles.discountText}>{Math.round(item.discount)}% OFF</Text>
           </View>
         )}
       </View>
@@ -370,7 +451,7 @@ const WatchlistScreen = () => {
         <View style={styles.listPriceContainer}>
           <Text style={styles.listCurrentPrice}>${item.price}</Text>
           {item.originalPrice > item.price && (
-            <Text style={styles.listOriginalPrice}>${item.originalPrice}</Text>
+            <Text style={styles.listOriginalPrice}>${item.originalPrice.toFixed(2)}</Text>
           )}
         </View>
 
@@ -396,9 +477,9 @@ const WatchlistScreen = () => {
           
           <TouchableOpacity 
             style={styles.listRemoveButton}
-            onPress={() => removeFromWatchlist(item.id)}
+            onPress={() => quickRemoveFromWatchlist(item.id, item.productId)}
           >
-            <Ionicons name="trash-outline" size={16} color="#FF6B6B" />
+            <Ionicons name="heart" size={16} color="#FF6B6B" />
           </TouchableOpacity>
         </View>
       </View>
@@ -478,28 +559,6 @@ const WatchlistScreen = () => {
         <TouchableOpacity style={styles.startShoppingButton}>
           <Text style={styles.startShoppingText}>Start Shopping</Text>
         </TouchableOpacity>
-        
-        {/* Popular Items Suggestions */}
-        <View style={styles.suggestionsSection}>
-          <Text style={styles.suggestionsTitle}>Popular Items You Might Like</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {staticWatchlistItems.slice(0, 4).map(item => (
-              <TouchableOpacity key={item.id} style={styles.suggestionItem}>
-                <Image source={{ uri: item.image }} style={styles.suggestionImage} />
-                <Text style={styles.suggestionName} numberOfLines={2}>{item.name}</Text>
-                <View style={styles.suggestionPrice}>
-                  <Text style={styles.suggestionCurrentPrice}>${item.price}</Text>
-                  {item.originalPrice > item.price && (
-                    <Text style={styles.suggestionOriginalPrice}>${item.originalPrice}</Text>
-                  )}
-                </View>
-                <TouchableOpacity style={styles.suggestionHeartButton}>
-                  <Ionicons name="heart-outline" size={16} color="#FF6B6B" />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
       </View>
     );
   }
@@ -573,6 +632,9 @@ const WatchlistScreen = () => {
         contentContainerStyle={styles.watchlistList}
         showsVerticalScrollIndicator={false}
         key={viewMode}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
 
       {/* Quick Actions Footer */}
@@ -580,7 +642,36 @@ const WatchlistScreen = () => {
         <View style={styles.footer}>
           <TouchableOpacity 
             style={styles.addAllToCartButton}
-            onPress={() => Alert.alert('Add All', 'Add all available items to cart?')}
+            onPress={() => {
+              const availableItems = filteredItems.filter(item => item.inStock);
+              if (availableItems.length === 0) {
+                Alert.alert('No Items Available', 'All items in your watchlist are out of stock.');
+                return;
+              }
+              Alert.alert(
+                'Add All to Cart', 
+                `Add ${availableItems.length} available items to cart?`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Add All',
+                    onPress: async () => {
+                      try {
+                        const addPromises = availableItems.map(item => addToCartAPI(item.productId));
+                        await Promise.all(addPromises);
+                        const removePromises = availableItems.map(item => removeFromWatchlistAPI(item.productId));
+                        await Promise.all(removePromises);
+                        setWatchlistItems(prev => prev.filter(item => !item.inStock));
+                        Alert.alert('Success', `${availableItems.length} items added to cart`);
+                      } catch (error) {
+                        console.error('Error adding all to cart:', error);
+                        Alert.alert('Error', 'Failed to add items to cart');
+                      }
+                    }
+                  }
+                ]
+              );
+            }}
           >
             <Ionicons name="cart" size={20} color="#fff" />
             <Text style={styles.addAllToCartText}>Add All to Cart</Text>
@@ -639,71 +730,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 12,
-    marginBottom: 40,
   },
   startShoppingText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  suggestionsSection: {
-    width: '100%',
-  },
-  suggestionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  suggestionItem: {
-    width: 140,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginRight: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    position: 'relative',
-  },
-  suggestionImage: {
-    width: '100%',
-    height: 80,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  suggestionName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 4,
-    height: 32,
-  },
-  suggestionPrice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  suggestionCurrentPrice: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FF6B6B',
-    marginRight: 4,
-  },
-  suggestionOriginalPrice: {
-    fontSize: 10,
-    color: '#999',
-    textDecorationLine: 'line-through',
-  },
-  suggestionHeartButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 12,
-    padding: 4,
   },
   header: {
     backgroundColor: '#fff',
@@ -810,20 +841,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  saleBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#4CAF50',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  saleText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
   outOfStockOverlay: {
     position: 'absolute',
     top: 0,
@@ -850,6 +867,9 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 6,
     marginLeft: 5,
+  },
+  removeButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   itemInfo: {
     padding: 12,

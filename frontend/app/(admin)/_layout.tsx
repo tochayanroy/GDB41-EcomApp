@@ -10,7 +10,7 @@ export default function AdminLayout() {
       }
     }}>
       <Tabs.Screen
-        name="AdminDashboard"
+        name="AdminDashboardScreen"
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => (
@@ -42,24 +42,6 @@ export default function AdminLayout() {
           title: 'Banners',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="images-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="UserManagementScreen"
-        options={{
-          title: 'Users',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="OrderManagementScreen"
-        options={{
-          title: 'Orders',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="receipt-outline" size={size} color={color} />
           ),
         }}
       />

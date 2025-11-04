@@ -10,10 +10,15 @@ import {
     TouchableOpacity,
     ScrollView,
     ActivityIndicator,
-    TextInput
+    TextInput,
+    Alert
 } from 'react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const CategoriesScreen = () => {
   const [categories, setCategories] = useState([]);
@@ -22,179 +27,104 @@ const CategoriesScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categoryProducts, setCategoryProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
-  // Static categories data
-  const staticCategories = [
-    {
-      id: '1',
-      name: 'Electronics',
-      image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300',
-      description: 'Latest gadgets and electronic devices',
-      productCount: 156,
-      icon: 'phone-portrait',
-      color: '#FF6B6B',
-      subcategories: ['Smartphones', 'Laptops', 'Headphones', 'Smart Watches', 'Cameras']
-    },
-    {
-      id: '2',
-      name: 'Fashion',
-      image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300',
-      description: 'Trendy clothing and accessories',
-      productCount: 289,
-      icon: 'shirt',
-      color: '#4ECDC4',
-      subcategories: ['Men', 'Women', 'Kids', 'Shoes', 'Accessories']
-    },
-    {
-      id: '3',
-      name: 'Home & Garden',
-      image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300',
-      description: 'Furniture and home decor items',
-      productCount: 178,
-      icon: 'home',
-      color: '#45B7D1',
-      subcategories: ['Furniture', 'Decor', 'Kitchen', 'Garden', 'Lighting']
-    },
-    {
-      id: '4',
-      name: 'Beauty & Health',
-      image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300',
-      description: 'Cosmetics and wellness products',
-      productCount: 234,
-      icon: 'color-palette',
-      color: '#96CEB4',
-      subcategories: ['Skincare', 'Makeup', 'Haircare', 'Fragrances', 'Wellness']
-    },
-    {
-      id: '5',
-      name: 'Sports & Outdoors',
-      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300',
-      description: 'Sports equipment and outdoor gear',
-      productCount: 167,
-      icon: 'basketball',
-      color: '#FFEAA7',
-      subcategories: ['Fitness', 'Outdoor', 'Team Sports', 'Water Sports', 'Cycling']
-    },
-    {
-      id: '6',
-      name: 'Books & Media',
-      image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300',
-      description: 'Books, movies, and music',
-      productCount: 312,
-      icon: 'book',
-      color: '#DDA0DD',
-      subcategories: ['Fiction', 'Non-Fiction', 'Educational', 'Movies', 'Music']
-    },
-    {
-      id: '7',
-      name: 'Toys & Games',
-      image: 'https://images.unsplash.com/photo-1550747534-8aec95df0f61?w=300',
-      description: 'Toys and entertainment for all ages',
-      productCount: 198,
-      icon: 'game-controller',
-      color: '#FFA07A',
-      subcategories: ['Educational', 'Action Figures', 'Board Games', 'Puzzles', 'Outdoor Toys']
-    },
-    {
-      id: '8',
-      name: 'Automotive',
-      image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=300',
-      description: 'Car accessories and parts',
-      productCount: 145,
-      icon: 'car',
-      color: '#778899',
-      subcategories: ['Car Care', 'Accessories', 'Tools', 'Electronics', 'Parts']
-    },
-    {
-      id: '9',
-      name: 'Food & Grocery',
-      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=300',
-      description: 'Fresh food and grocery items',
-      productCount: 423,
-      icon: 'fast-food',
-      color: '#F08080',
-      subcategories: ['Fresh Produce', 'Beverages', 'Snacks', 'Dairy', 'Bakery']
-    },
-    {
-      id: '10',
-      name: 'Jewelry',
-      image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=300',
-      description: 'Fine jewelry and accessories',
-      productCount: 89,
-      icon: 'diamond',
-      color: '#FFD700',
-      subcategories: ['Rings', 'Necklaces', 'Earrings', 'Bracelets', 'Watches']
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
     }
-  ];
+  };
 
-  // Static products for category details
-  const staticProducts = [
-    {
-      id: '1',
-      name: 'Wireless Bluetooth Headphones',
-      price: 99.99,
-      originalPrice: 129.99,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300',
-      rating: 4.5,
-      category: 'Electronics',
-      discount: 23
-    },
-    {
-      id: '3',
-      name: 'Smart Watch Series 5',
-      price: 199.99,
-      originalPrice: 249.99,
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
-      rating: 4.7,
-      category: 'Electronics',
-      discount: 20
-    },
-    {
-      id: '7',
-      name: 'Wireless Earbuds Pro',
-      price: 129.99,
-      originalPrice: 159.99,
-      image: 'https://images.unsplash.com/photo-1590658165737-15a047b8b5e0?w=300',
-      rating: 4.6,
-      category: 'Electronics',
-      discount: 19
-    },
-    {
-      id: '11',
-      name: 'Gaming Laptop',
-      price: 1299.99,
-      originalPrice: 1499.99,
-      image: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=300',
-      rating: 4.8,
-      category: 'Electronics',
-      discount: 13
-    },
-    {
-      id: '12',
-      name: 'DSLR Camera',
-      price: 899.99,
-      originalPrice: 1099.99,
-      image: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=300',
-      rating: 4.4,
-      category: 'Electronics',
-      discount: 18
+  // API Functions
+  const fetchCategories = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/category/getAllCategories`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data.categories || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      Alert.alert('Error', 'Failed to fetch categories');
+      return [];
     }
-  ];
+  };
+
+  const fetchProductsByCategory = async (categoryId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/product/category/${categoryId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching category products:', error);
+      Alert.alert('Error', 'Failed to fetch products for this category');
+      return [];
+    }
+  };
+
+  const fetchAllProducts = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/product/allProduct`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching all products:', error);
+      return [];
+    }
+  };
+
+  // Helper function to get icon based on category name
+  const getCategoryIcon = (categoryName) => {
+    const iconMap = {
+      'Electronics': 'phone-portrait',
+      'Fashion': 'shirt',
+      'Home': 'home',
+      'Beauty': 'color-palette',
+      'Sports': 'basketball',
+      'Books': 'book',
+      'Toys': 'game-controller',
+      'Automotive': 'car',
+      'Food': 'fast-food',
+      'Health': 'fitness',
+      'Education': 'school',
+      'Travel': 'airplane',
+      'Jewelry': 'diamond'
+    };
+    return iconMap[categoryName] || 'cube';
+  };
+
+  const getCategoryColor = (index) => {
+    const colors = [
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+      '#DDA0DD', '#FFA07A', '#778899', '#F08080', '#FFD700',
+      '#87CEEB', '#98FB98', '#FFB6C1', '#D2B48C'
+    ];
+    return colors[index % colors.length];
+  };
 
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setCategories(staticCategories);
-      setFilteredCategories(staticCategories);
-      setLoading(false);
-    }, 1000);
+    loadCategories();
   }, []);
 
   useEffect(() => {
     if (searchQuery) {
       const filtered = categories.filter(category =>
-        category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        category.description.toLowerCase().includes(searchQuery.toLowerCase())
+        category.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        category.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredCategories(filtered);
     } else {
@@ -202,13 +132,47 @@ const CategoriesScreen = () => {
     }
   }, [searchQuery, categories]);
 
-  const handleCategoryPress = (category) => {
+  const loadCategories = async () => {
+    setLoading(true);
+    try {
+      const categoriesData = await fetchCategories();
+      const productsData = await fetchAllProducts();
+      
+      // Count products per category
+      const categoriesWithCounts = categoriesData.map(category => {
+        const productCount = productsData.filter(product => 
+          product.categorie?._id === category._id
+        ).length;
+        
+        return {
+          ...category,
+          productCount,
+          icon: getCategoryIcon(category.name),
+          color: getCategoryColor(categoriesData.indexOf(category)),
+          subcategories: ['Featured', 'Popular', 'New Arrivals', 'On Sale'] // Default subcategories
+        };
+      });
+
+      setCategories(categoriesWithCounts);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCategoryPress = async (category) => {
     setSelectedCategory(category);
-    // Filter products by category
-    const products = staticProducts.filter(product => 
-      product.category === category.name
-    );
-    setCategoryProducts(products);
+    setProductsLoading(true);
+    
+    try {
+      const products = await fetchProductsByCategory(category._id);
+      setCategoryProducts(products);
+    } catch (error) {
+      console.error('Error loading category products:', error);
+    } finally {
+      setProductsLoading(false);
+    }
   };
 
   const handleBackToCategories = () => {
@@ -219,9 +183,10 @@ const CategoriesScreen = () => {
   const handleProductPress = (product) => {
     // Handle product press - could show product details
     console.log('Product pressed:', product.name);
+    // navigation.navigate('ProductDetail', { productId: product._id });
   };
 
-  const renderCategoryGrid = ({ item }) => (
+  const renderCategoryGrid = ({ item, index }) => (
     <TouchableOpacity 
       style={styles.categoryCard}
       onPress={() => handleCategoryPress(item)}
@@ -229,13 +194,16 @@ const CategoriesScreen = () => {
       <View style={[styles.categoryIcon, { backgroundColor: item.color }]}>
         <Ionicons name={item.icon} size={32} color="#fff" />
       </View>
-      <Image source={{ uri: item.image }} style={styles.categoryImage} />
+      <Image 
+        source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+        style={styles.categoryImage} 
+      />
       <View style={styles.categoryInfo}>
         <Text style={styles.categoryName}>{item.name}</Text>
         <Text style={styles.categoryDescription} numberOfLines={2}>
-          {item.description}
+          {item.description || 'Explore amazing products'}
         </Text>
-        <Text style={styles.productCount}>{item.productCount} products</Text>
+        <Text style={styles.productCount}>{item.productCount || 0} products</Text>
       </View>
     </TouchableOpacity>
   );
@@ -251,7 +219,7 @@ const CategoriesScreen = () => {
         </View>
         <View style={styles.listText}>
           <Text style={styles.listCategoryName}>{item.name}</Text>
-          <Text style={styles.listProductCount}>{item.productCount} products</Text>
+          <Text style={styles.listProductCount}>{item.productCount || 0} products</Text>
         </View>
       </View>
       <Ionicons name="chevron-forward" size={20} color="#ccc" />
@@ -263,23 +231,28 @@ const CategoriesScreen = () => {
       style={styles.productCard}
       onPress={() => handleProductPress(item)}
     >
-      <Image source={{ uri: item.image }} style={styles.productImage} />
+      <Image 
+        source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+        style={styles.productImage} 
+      />
       <View style={styles.productInfo}>
         <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
         <View style={styles.ratingContainer}>
           <Ionicons name="star" size={14} color="#FFD700" />
-          <Text style={styles.ratingText}>{item.rating}</Text>
+          <Text style={styles.ratingText}>{item.rating || 4.0}</Text>
         </View>
         <View style={styles.priceContainer}>
           <Text style={styles.currentPrice}>${item.price}</Text>
-          {item.originalPrice > item.price && (
-            <Text style={styles.originalPrice}>${item.originalPrice}</Text>
+          {item.discount > 0 && (
+            <Text style={styles.originalPrice}>
+              ${(item.price / (1 - item.discount / 100)).toFixed(2)}
+            </Text>
           )}
         </View>
       </View>
       {item.discount > 0 && (
         <View style={styles.discountBadge}>
-          <Text style={styles.discountText}>{item.discount}% OFF</Text>
+          <Text style={styles.discountText}>{Math.round(item.discount)}% OFF</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -310,82 +283,117 @@ const CategoriesScreen = () => {
           <View style={styles.headerPlaceholder} />
         </View>
 
-        {/* Category Banner */}
-        <View style={styles.categoryBanner}>
-          <Image 
-            source={{ uri: selectedCategory.image }} 
-            style={styles.bannerImage} 
-          />
-          <View style={styles.bannerOverlay}>
-            <View style={[styles.bannerIcon, { backgroundColor: selectedCategory.color }]}>
-              <Ionicons name={selectedCategory.icon} size={40} color="#fff" />
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Category Banner */}
+          <View style={styles.categoryBanner}>
+            <Image 
+              source={{ uri: selectedCategory.image ? `${API_BASE_URL}/${selectedCategory.image}` : 'https://via.placeholder.com/400x200' }} 
+              style={styles.bannerImage} 
+            />
+            <View style={styles.bannerOverlay}>
+              <View style={[styles.bannerIcon, { backgroundColor: selectedCategory.color }]}>
+                <Ionicons name={selectedCategory.icon} size={40} color="#fff" />
+              </View>
+              <Text style={styles.bannerTitle}>{selectedCategory.name}</Text>
+              <Text style={styles.bannerDescription}>
+                {selectedCategory.description || 'Explore our amazing collection'}
+              </Text>
+              <Text style={styles.bannerProductCount}>
+                {selectedCategory.productCount || 0} products available
+              </Text>
             </View>
-            <Text style={styles.bannerTitle}>{selectedCategory.name}</Text>
-            <Text style={styles.bannerDescription}>{selectedCategory.description}</Text>
-            <Text style={styles.bannerProductCount}>
-              {selectedCategory.productCount} products available
-            </Text>
           </View>
-        </View>
 
-        {/* Subcategories */}
-        <View style={styles.subcategoriesSection}>
-          <Text style={styles.sectionTitle}>Subcategories</Text>
-          <View style={styles.subcategoriesGrid}>
-            {selectedCategory.subcategories.map((subcategory, index) => (
-              <TouchableOpacity key={index} style={styles.subcategoryCard}>
-                <Text style={styles.subcategoryCardText}>{subcategory}</Text>
-              </TouchableOpacity>
-            ))}
+          {/* Subcategories */}
+          <View style={styles.subcategoriesSection}>
+            <Text style={styles.sectionTitle}>Browse</Text>
+            <View style={styles.subcategoriesGrid}>
+              {selectedCategory.subcategories?.map((subcategory, index) => (
+                <TouchableOpacity key={index} style={styles.subcategoryCard}>
+                  <Text style={styles.subcategoryCardText}>{subcategory}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
 
-        {/* Featured Products */}
-        <View style={styles.productsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Popular Products</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={categoryProducts}
-            renderItem={renderProductItem}
-            keyExtractor={item => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.productsList}
-          />
-        </View>
-
-        {/* All Products Grid */}
-        <View style={styles.allProductsSection}>
-          <Text style={styles.sectionTitle}>All Products</Text>
-          <FlatList
-            data={categoryProducts}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.gridProductCard}>
-                <Image source={{ uri: item.image }} style={styles.gridProductImage} />
-                <View style={styles.gridProductInfo}>
-                  <Text style={styles.gridProductName} numberOfLines={2}>
-                    {item.name}
-                  </Text>
-                  <View style={styles.gridPriceContainer}>
-                    <Text style={styles.gridCurrentPrice}>${item.price}</Text>
-                    {item.originalPrice > item.price && (
-                      <Text style={styles.gridOriginalPrice}>${item.originalPrice}</Text>
-                    )}
-                  </View>
+          {/* Featured Products */}
+          {productsLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#FF6B6B" />
+              <Text style={styles.loadingText}>Loading products...</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.productsSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Popular Products</Text>
+                  <TouchableOpacity>
+                    <Text style={styles.seeAllText}>See all</Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            )}
-            keyExtractor={item => item.id}
-            numColumns={2}
-            scrollEnabled={false}
-            columnWrapperStyle={styles.productsGrid}
-            contentContainerStyle={styles.gridProductsList}
-          />
-        </View>
+                {categoryProducts.length > 0 ? (
+                  <FlatList
+                    data={categoryProducts.slice(0, 5)}
+                    renderItem={renderProductItem}
+                    keyExtractor={item => item._id}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.productsList}
+                  />
+                ) : (
+                  <View style={styles.emptyProducts}>
+                    <Ionicons name="cube-outline" size={40} color="#ccc" />
+                    <Text style={styles.emptyProductsText}>No products found</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* All Products Grid */}
+              <View style={styles.allProductsSection}>
+                <Text style={styles.sectionTitle}>All Products</Text>
+                {categoryProducts.length > 0 ? (
+                  <FlatList
+                    data={categoryProducts}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity style={styles.gridProductCard}>
+                        <Image 
+                          source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+                          style={styles.gridProductImage} 
+                        />
+                        <View style={styles.gridProductInfo}>
+                          <Text style={styles.gridProductName} numberOfLines={2}>
+                            {item.name}
+                          </Text>
+                          <View style={styles.gridPriceContainer}>
+                            <Text style={styles.gridCurrentPrice}>${item.price}</Text>
+                            {item.discount > 0 && (
+                              <Text style={styles.gridOriginalPrice}>
+                                ${(item.price / (1 - item.discount / 100)).toFixed(2)}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    keyExtractor={item => item._id}
+                    numColumns={2}
+                    scrollEnabled={false}
+                    columnWrapperStyle={styles.productsGrid}
+                    contentContainerStyle={styles.gridProductsList}
+                  />
+                ) : (
+                  <View style={styles.emptyProducts}>
+                    <Ionicons name="cube-outline" size={40} color="#ccc" />
+                    <Text style={styles.emptyProductsText}>No products available</Text>
+                    <Text style={styles.emptyProductsSubtext}>
+                      Check back later for new arrivals
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
       </View>
     );
   };
@@ -437,7 +445,7 @@ const CategoriesScreen = () => {
         <FlatList
           data={filteredCategories}
           renderItem={renderCategoryGrid}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item._id}
           numColumns={2}
           contentContainerStyle={styles.categoriesList}
           showsVerticalScrollIndicator={false}
@@ -475,6 +483,8 @@ const CategoriesScreen = () => {
     </View>
   );
 };
+
+// ... (keep all the same styles from the previous code)
 
 const styles = StyleSheet.create({
   container: {
@@ -669,6 +679,21 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginBottom: 24,
+  },
+  emptyProducts: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyProductsText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyProductsSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
   retryButton: {
     backgroundColor: '#FF6B6B',

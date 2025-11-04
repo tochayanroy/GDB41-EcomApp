@@ -14,10 +14,16 @@ import {
     Modal,
     ActivityIndicator
 } from 'react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 
+const API_BASE_URL = 'http://192.168.0.102:5000';
+
 const ProductListingScreen = () => {
+  const router = useRouter();
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +36,7 @@ const ProductListingScreen = () => {
   const [selectedRatings, setSelectedRatings] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
   const [cartCount, setCartCount] = useState(0);
+  const [categories, setCategories] = useState([]);
 
   // Sort options
   const sortOptions = [
@@ -41,15 +48,6 @@ const ProductListingScreen = () => {
     { id: 'newest', label: 'Newest First', icon: 'time' },
   ];
 
-  // Categories for filtering
-  const categories = [
-    { id: '1', name: 'Electronics' },
-    { id: '2', name: 'Fashion' },
-    { id: '3', name: 'Home' },
-    { id: '4', name: 'Beauty' },
-    { id: '5', name: 'Sports' },
-  ];
-
   const ratingOptions = [
     { value: 5, label: '5 Stars' },
     { value: 4, label: '4 Stars & Up' },
@@ -57,137 +55,155 @@ const ProductListingScreen = () => {
     { value: 2, label: '2 Stars & Up' },
   ];
 
-  // Static products data
-  const staticProducts = [
-    {
-      id: '1',
-      name: 'Wireless Bluetooth Headphones',
-      price: 99.99,
-      originalPrice: 129.99,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300',
-      rating: 4.5,
-      reviewCount: 128,
-      category: 'Electronics',
-      isNew: true,
-      isFeatured: true,
-      description: 'High-quality wireless headphones with noise cancellation',
-      inStock: true,
-      discount: 23
-    },
-    {
-      id: '2',
-      name: 'Running Shoes - Professional Grade',
-      price: 79.99,
-      originalPrice: 99.99,
-      image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300',
-      rating: 4.2,
-      reviewCount: 89,
-      category: 'Sports',
-      isNew: false,
-      isFeatured: true,
-      description: 'Comfortable running shoes for professional athletes',
-      inStock: true,
-      discount: 20
-    },
-    {
-      id: '3',
-      name: 'Smart Watch Series 5',
-      price: 199.99,
-      originalPrice: 249.99,
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
-      rating: 4.7,
-      reviewCount: 256,
-      category: 'Electronics',
-      isNew: true,
-      isFeatured: false,
-      description: 'Latest smartwatch with health monitoring features',
-      inStock: true,
-      discount: 20
-    },
-    {
-      id: '4',
-      name: 'Premium Perfume Collection',
-      price: 49.99,
-      originalPrice: 69.99,
-      image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=300',
-      rating: 4.3,
-      reviewCount: 67,
-      category: 'Beauty',
-      isNew: false,
-      isFeatured: false,
-      description: 'Luxury perfume with long-lasting fragrance',
-      inStock: true,
-      discount: 29
-    },
-    {
-      id: '5',
-      name: 'Designer Coffee Mug Set',
-      price: 14.99,
-      originalPrice: 19.99,
-      image: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=300',
-      rating: 4.1,
-      reviewCount: 34,
-      category: 'Home',
-      isNew: true,
-      isFeatured: true,
-      description: 'Elegant coffee mug set for your morning routine',
-      inStock: false,
-      discount: 25
-    },
-    {
-      id: '6',
-      name: 'Professional Backpack',
-      price: 59.99,
-      originalPrice: 79.99,
-      image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300',
-      rating: 4.4,
-      reviewCount: 156,
-      category: 'Fashion',
-      isNew: false,
-      isFeatured: false,
-      description: 'Durable backpack with laptop compartment',
-      inStock: true,
-      discount: 25
-    },
-    {
-      id: '7',
-      name: 'Wireless Earbuds Pro',
-      price: 129.99,
-      originalPrice: 159.99,
-      image: 'https://images.unsplash.com/photo-1590658165737-15a047b8b5e0?w=300',
-      rating: 4.6,
-      reviewCount: 203,
-      category: 'Electronics',
-      isNew: true,
-      isFeatured: true,
-      description: 'True wireless earbuds with premium sound quality',
-      inStock: true,
-      discount: 19
-    },
-    {
-      id: '8',
-      name: 'Fitness Tracker Watch',
-      price: 89.99,
-      originalPrice: 119.99,
-      image: 'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=300',
-      rating: 4.0,
-      reviewCount: 78,
-      category: 'Sports',
-      isNew: false,
-      isFeatured: false,
-      description: 'Advanced fitness tracker with heart rate monitor',
-      inStock: true,
-      discount: 25
-    },
-  ];
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  };
+
+  // API Functions
+  const fetchProducts = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/product/allProduct`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      throw error;
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/category/getAllCategories`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data.categories || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+  };
+
+  const fetchCartCount = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/cart/getCart`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (response.data && response.data.totalItems) {
+        return response.data.totalItems;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error fetching cart count:', error);
+      return 0;
+    }
+  };
+
+  const addToCart = async (product) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(`${API_BASE_URL}/cart/add/${product._id}`, 
+        {
+          quantity: 1
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        Alert.alert(
+          'Added to Cart',
+          `${product.name} has been added to your cart`,
+          [{ text: 'OK' }]
+        );
+        
+        // Refresh cart count
+        const newCartCount = await fetchCartCount();
+        setCartCount(newCartCount);
+      } else {
+        Alert.alert('Error', response.data.message || 'Failed to add product to cart');
+      }
+      
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to add product to cart');
+    }
+  };
+
+  const addToWishlist = async (product) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.post(
+        `${API_BASE_URL}/watchlist/toggle/${product._id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.inWishlist) {
+        Alert.alert(
+          'Added to Wishlist',
+          `${product.name} has been added to your wishlist`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Removed from Wishlist',
+          `${product.name} has been removed from your wishlist`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling wishlist:', error);
+      Alert.alert('Error', 'Failed to update wishlist');
+    }
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [productsData, categoriesData, cartCountData] = await Promise.all([
+        fetchProducts(),
+        fetchCategories(),
+        fetchCartCount()
+      ]);
+
+      setProducts(productsData);
+      setFilteredProducts(productsData);
+      setCategories(categoriesData);
+      setCartCount(cartCountData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      Alert.alert('Error', 'Failed to load products');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setProducts(staticProducts);
-      setFilteredProducts(staticProducts);
-      setLoading(false);
-    }, 1000);
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -200,7 +216,8 @@ const ProductListingScreen = () => {
     // Apply search filter
     if (searchText) {
       result = result.filter(product =>
-        product.name.toLowerCase().includes(searchText.toLowerCase())
+        product.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        product.description.toLowerCase().includes(searchText.toLowerCase())
       );
     }
 
@@ -212,15 +229,16 @@ const ProductListingScreen = () => {
     // Apply category filter
     if (selectedCategories.length > 0) {
       result = result.filter(product =>
-        selectedCategories.includes(product.category)
+        selectedCategories.includes(product.categorie?._id)
       );
     }
 
     // Apply rating filter
     if (selectedRatings.length > 0) {
-      result = result.filter(product =>
-        selectedRatings.some(rating => product.rating >= rating)
-      );
+      result = result.filter(product => {
+        const productRating = product.rating || 0;
+        return selectedRatings.some(rating => productRating >= rating);
+      });
     }
 
     // Apply sorting
@@ -235,10 +253,10 @@ const ProductListingScreen = () => {
         result.sort((a, b) => a.name.localeCompare(b.name));
         break;
       case 'rating':
-        result.sort((a, b) => b.rating - a.rating);
+        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
       case 'newest':
-        result.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+        result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         break;
       default: // featured
         result.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
@@ -248,35 +266,16 @@ const ProductListingScreen = () => {
   };
 
   const handleProductPress = (product) => {
-    Alert.alert(
-      'Product Details',
-      `${product.name}\n\nPrice: $${product.price}\nRating: ${product.rating}/5\n\n${product.description}`,
-      [{ text: 'OK' }]
-    );
+    router.push('../products/ProductDetailsScreen', { 
+      productId: product._id
+    });
   };
 
-  const addToCart = (product) => {
-    Alert.alert(
-      'Added to Cart',
-      `${product.name} has been added to your cart`,
-      [{ text: 'OK' }]
-    );
-    setCartCount(prev => prev + 1);
-  };
-
-  const addToWishlist = (product) => {
-    Alert.alert(
-      'Added to Wishlist',
-      `${product.name} has been added to your wishlist`,
-      [{ text: 'OK' }]
-    );
-  };
-
-  const toggleCategory = (categoryName) => {
+  const toggleCategory = (categoryId) => {
     setSelectedCategories(prev =>
-      prev.includes(categoryName)
-        ? prev.filter(cat => cat !== categoryName)
-        : [...prev, categoryName]
+      prev.includes(categoryId)
+        ? prev.filter(cat => cat !== categoryId)
+        : [...prev, categoryId]
     );
   };
 
@@ -295,129 +294,149 @@ const ProductListingScreen = () => {
     setSearchText('');
   };
 
-  const renderProductGrid = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.productCard}
-      onPress={() => handleProductPress(item)}
-    >
-      <View style={styles.productImageContainer}>
-        <Image source={{ uri: item.image }} style={styles.productImage} />
-        <TouchableOpacity 
-          style={styles.wishlistButton}
-          onPress={() => addToWishlist(item)}
-        >
-          <Ionicons name="heart-outline" size={20} color="#666" />
-        </TouchableOpacity>
-        {item.discount > 0 && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>{item.discount}% OFF</Text>
-          </View>
-        )}
-        {item.isNew && (
-          <View style={styles.newBadge}>
-            <Text style={styles.newBadgeText}>NEW</Text>
-          </View>
-        )}
-        {!item.inStock && (
-          <View style={styles.outOfStockOverlay}>
-            <Text style={styles.outOfStockText}>Out of Stock</Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.productInfo}>
-        <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-        
-        <View style={styles.ratingContainer}>
-          <Ionicons name="star" size={14} color="#FFD700" />
-          <Text style={styles.ratingText}>{item.rating}</Text>
-          <Text style={styles.reviewCount}>({item.reviewCount})</Text>
-        </View>
-        
-        <View style={styles.priceContainer}>
-          <Text style={styles.currentPrice}>${item.price}</Text>
-          {item.originalPrice > item.price && (
-            <Text style={styles.originalPrice}>${item.originalPrice}</Text>
-          )}
-        </View>
-        
-        <TouchableOpacity 
-          style={[
-            styles.addToCartButton,
-            !item.inStock && styles.disabledButton
-          ]}
-          onPress={() => item.inStock && addToCart(item)}
-          disabled={!item.inStock}
-        >
-          <Text style={styles.addToCartText}>
-            {item.inStock ? 'Add to Cart' : 'Out of Stock'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderProductGrid = ({ item }) => {
+    const discountPercentage = item.discount > 0 ? Math.round(item.discount) : null;
+    const productRating = item.rating || 0;
+    const reviewCount = item.reviews?.length || 0;
 
-  const renderProductList = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.productListCard}
-      onPress={() => handleProductPress(item)}
-    >
-      <View style={styles.productListImageContainer}>
-        <Image source={{ uri: item.image }} style={styles.productListImage} />
-        {item.discount > 0 && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>{item.discount}% OFF</Text>
-          </View>
-        )}
-        {item.isNew && (
-          <View style={styles.newBadge}>
-            <Text style={styles.newBadgeText}>NEW</Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.productListInfo}>
-        <Text style={styles.productListName} numberOfLines={2}>{item.name}</Text>
-        <Text style={styles.productListDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-        
-        <View style={styles.ratingContainer}>
-          <Ionicons name="star" size={14} color="#FFD700" />
-          <Text style={styles.ratingText}>{item.rating}</Text>
-          <Text style={styles.reviewCount}>({item.reviewCount})</Text>
-        </View>
-        
-        <View style={styles.priceContainer}>
-          <Text style={styles.currentPrice}>${item.price}</Text>
-          {item.originalPrice > item.price && (
-            <Text style={styles.originalPrice}>${item.originalPrice}</Text>
-          )}
-        </View>
-        
-        <View style={styles.productListActions}>
+    return (
+      <TouchableOpacity 
+        style={styles.productCard}
+        onPress={() => handleProductPress(item)}
+      >
+        <View style={styles.productImageContainer}>
+          <Image 
+            source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+            style={styles.productImage} 
+          />
           <TouchableOpacity 
-            style={[
-              styles.addToCartListButton,
-              !item.inStock && styles.disabledButton
-            ]}
-            onPress={() => item.inStock && addToCart(item)}
-            disabled={!item.inStock}
-          >
-            <Text style={styles.addToCartText}>
-              {item.inStock ? 'Add to Cart' : 'Out of Stock'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.wishlistListButton}
+            style={styles.wishlistButton}
             onPress={() => addToWishlist(item)}
           >
             <Ionicons name="heart-outline" size={20} color="#666" />
           </TouchableOpacity>
+          {discountPercentage && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>{discountPercentage}% OFF</Text>
+            </View>
+          )}
+          {!item.quantity || item.quantity === 0 && (
+            <View style={styles.outOfStockOverlay}>
+              <Text style={styles.outOfStockText}>Out of Stock</Text>
+            </View>
+          )}
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+        
+        <View style={styles.productInfo}>
+          <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+          
+          <Text style={styles.productCategory}>
+            {item.categorie?.name || 'Uncategorized'}
+          </Text>
+          
+          <View style={styles.ratingContainer}>
+            <Ionicons name="star" size={14} color="#FFD700" />
+            <Text style={styles.ratingText}>{productRating.toFixed(1)}</Text>
+            <Text style={styles.reviewCount}>({reviewCount})</Text>
+          </View>
+          
+          <View style={styles.priceContainer}>
+            <Text style={styles.currentPrice}>${item.price}</Text>
+            {item.discount > 0 && (
+              <Text style={styles.originalPrice}>
+                ${(item.price / (1 - item.discount / 100)).toFixed(2)}
+              </Text>
+            )}
+          </View>
+          
+          <TouchableOpacity 
+            style={[
+              styles.addToCartButton,
+              (!item.quantity || item.quantity === 0) && styles.disabledButton
+            ]}
+            onPress={() => item.quantity > 0 && addToCart(item)}
+            disabled={!item.quantity || item.quantity === 0}
+          >
+            <Text style={styles.addToCartText}>
+              {item.quantity > 0 ? 'Add to Cart' : 'Out of Stock'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderProductList = ({ item }) => {
+    const discountPercentage = item.discount > 0 ? Math.round(item.discount) : null;
+    const productRating = item.rating || 0;
+    const reviewCount = item.reviews?.length || 0;
+
+    return (
+      <TouchableOpacity 
+        style={styles.productListCard}
+        onPress={() => handleProductPress(item)}
+      >
+        <View style={styles.productListImageContainer}>
+          <Image 
+            source={{ uri: item.image ? `${API_BASE_URL}/${item.image}` : 'https://via.placeholder.com/300' }} 
+            style={styles.productListImage} 
+          />
+          {discountPercentage && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>{discountPercentage}% OFF</Text>
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.productListInfo}>
+          <Text style={styles.productListName} numberOfLines={2}>{item.name}</Text>
+          <Text style={styles.productListDescription} numberOfLines={2}>
+            {item.description || 'No description available'}
+          </Text>
+          
+          <Text style={styles.productCategory}>
+            {item.categorie?.name || 'Uncategorized'}
+          </Text>
+          
+          <View style={styles.ratingContainer}>
+            <Ionicons name="star" size={14} color="#FFD700" />
+            <Text style={styles.ratingText}>{productRating.toFixed(1)}</Text>
+            <Text style={styles.reviewCount}>({reviewCount})</Text>
+          </View>
+          
+          <View style={styles.priceContainer}>
+            <Text style={styles.currentPrice}>${item.price}</Text>
+            {item.discount > 0 && (
+              <Text style={styles.originalPrice}>
+                ${(item.price / (1 - item.discount / 100)).toFixed(2)}
+              </Text>
+            )}
+          </View>
+          
+          <View style={styles.productListActions}>
+            <TouchableOpacity 
+              style={[
+                styles.addToCartListButton,
+                (!item.quantity || item.quantity === 0) && styles.disabledButton
+              ]}
+              onPress={() => item.quantity > 0 && addToCart(item)}
+              disabled={!item.quantity || item.quantity === 0}
+            >
+              <Text style={styles.addToCartText}>
+                {item.quantity > 0 ? 'Add to Cart' : 'Out of Stock'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.wishlistListButton}
+              onPress={() => addToWishlist(item)}
+            >
+              <Ionicons name="heart-outline" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderSortModal = () => (
     <Modal
@@ -505,16 +524,16 @@ const ProductListingScreen = () => {
               <Text style={styles.filterSectionTitle}>Categories</Text>
               {categories.map(category => (
                 <TouchableOpacity
-                  key={category.id}
+                  key={category._id}
                   style={styles.filterOption}
-                  onPress={() => toggleCategory(category.name)}
+                  onPress={() => toggleCategory(category._id)}
                 >
                   <Text style={styles.filterOptionText}>{category.name}</Text>
                   <View style={[
                     styles.checkbox,
-                    selectedCategories.includes(category.name) && styles.checkboxChecked
+                    selectedCategories.includes(category._id) && styles.checkboxChecked
                   ]}>
-                    {selectedCategories.includes(category.name) && (
+                    {selectedCategories.includes(category._id) && (
                       <Ionicons name="checkmark" size={14} color="#fff" />
                     )}
                   </View>
@@ -640,7 +659,7 @@ const ProductListingScreen = () => {
         <FlatList
           data={filteredProducts}
           renderItem={viewMode === 'grid' ? renderProductGrid : renderProductList}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item._id}
           numColumns={viewMode === 'grid' ? 2 : 1}
           contentContainerStyle={styles.productsList}
           showsVerticalScrollIndicator={false}
@@ -668,6 +687,8 @@ const ProductListingScreen = () => {
     </View>
   );
 };
+
+// ... (keep all the same styles from the original code)
 
 const styles = StyleSheet.create({
   container: {
@@ -829,20 +850,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  newBadge: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    backgroundColor: '#4CAF50',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  newBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
   outOfStockOverlay: {
     position: 'absolute',
     top: 0,
@@ -882,6 +889,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginBottom: 8,
+  },
+  productCategory: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
   },
   ratingContainer: {
     flexDirection: 'row',

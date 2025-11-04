@@ -19,33 +19,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="CategoriesScreen"
-        options={{
-          title: 'Categories',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="CartScreen"
-        options={{
-          title: 'Cart',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="WatchlistScreen"
-        options={{
-          title: 'Wishlist',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="heart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="UserProfileScreen"
         options={{
           title: 'Profile',

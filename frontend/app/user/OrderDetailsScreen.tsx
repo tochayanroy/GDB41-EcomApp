@@ -10,194 +10,209 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
-    Linking
+    Linking,
+    RefreshControl
 } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const OrderDetailsScreen = () => {
+  const { orderId } = useLocalSearchParams();
+  const router = useRouter();
+  
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('items'); // items, shipping, status
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('items');
 
-  // Static order data with detailed information
-  const staticOrder = {
-    id: 'ORD-001',
-    date: '2024-01-15',
-    status: 'delivered',
-    total: 299.97,
-    subtotal: 299.97,
-    shipping: 0,
-    tax: 24.00,
-    discount: 0,
-    items: [
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  };
+
+  // API Functions
+  const fetchOrderDetails = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/orders/${orderId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching order details:', error);
+      throw error;
+    }
+  };
+
+  const cancelOrder = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.put(`${API_BASE_URL}/orders/${orderId}/cancel`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      throw error;
+    }
+  };
+
+  const reorderItems = async () => {
+    try {
+      const token = await getAuthToken();
+      
+      // Add all items from order to cart
+      const addToCartPromises = order.items.map(item => 
+        axios.post(`${API_BASE_URL}/cart/add/${item.product._id}`, 
+          { quantity: item.quantity },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+      );
+      
+      await Promise.all(addToCartPromises);
+      return true;
+    } catch (error) {
+      console.error('Error reordering items:', error);
+      throw error;
+    }
+  };
+
+  const getOrderStatusSteps = (status) => {
+    const steps = [
       {
-        id: '1',
-        productId: '1',
-        name: 'Wireless Bluetooth Headphones',
-        price: 99.99,
-        originalPrice: 129.99,
-        image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300',
-        quantity: 1,
-        color: 'Black',
-        size: 'Standard',
-        discount: 23,
-        inStock: true,
-        rating: 4.5,
-        reviewCount: 128
+        status: 'pending',
+        title: 'Order Placed',
+        description: 'We have received your order',
+        completed: true,
+        current: status === 'pending',
+        date: 'Today'
       },
       {
-        id: '3',
-        productId: '3',
-        name: 'Smart Watch Series 5',
-        price: 199.99,
-        originalPrice: 249.99,
-        image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300',
-        quantity: 1,
-        color: 'Silver',
-        size: '42mm',
-        discount: 20,
-        inStock: true,
-        rating: 4.7,
-        reviewCount: 256
-      }
-    ],
-    shippingAddress: {
-      name: 'John Doe',
-      street: '123 Main Street',
-      apartment: 'Apt 4B',
-      city: 'New York',
-      state: 'NY',
-      zipCode: '10001',
-      country: 'United States',
-      phone: '+1 (555) 123-4567',
-      email: 'john.doe@example.com'
-    },
-    billingAddress: {
-      name: 'John Doe',
-      street: '123 Main Street',
-      apartment: 'Apt 4B',
-      city: 'New York',
-      state: 'NY',
-      zipCode: '10001',
-      country: 'United States'
-    },
-    paymentMethod: {
-      type: 'Credit Card',
-      last4: '4242',
-      brand: 'Visa',
-      expiry: '12/25'
-    },
-    shippingMethod: {
-      name: 'Free Shipping',
-      price: 0,
-      estimatedDays: '7-10 business days',
-      carrier: 'Standard Shipping'
-    },
-    tracking: {
-      number: 'TRK123456789',
-      carrier: 'UPS',
-      status: 'delivered',
-      timeline: [
-        {
-          status: 'ordered',
-          date: '2024-01-15',
-          time: '14:30',
-          description: 'Order placed',
-          location: 'Online Store'
-        },
-        {
-          status: 'confirmed',
-          date: '2024-01-15',
-          time: '15:45',
-          description: 'Order confirmed',
-          location: 'Warehouse'
-        },
-        {
-          status: 'processed',
-          date: '2024-01-16',
-          time: '09:15',
-          description: 'Order processed',
-          location: 'Warehouse'
-        },
-        {
-          status: 'shipped',
-          date: '2024-01-16',
-          time: '14:20',
-          description: 'Shipped from warehouse',
-          location: 'New York, NY'
-        },
-        {
-          status: 'in_transit',
-          date: '2024-01-17',
-          time: '08:30',
-          description: 'In transit',
-          location: 'Philadelphia, PA'
-        },
-        {
-          status: 'out_for_delivery',
-          date: '2024-01-18',
-          time: '08:00',
-          description: 'Out for delivery',
-          location: 'New York, NY'
-        },
-        {
-          status: 'delivered',
-          date: '2024-01-18',
-          time: '14:15',
-          description: 'Delivered',
-          location: 'Front Door'
-        }
-      ]
-    },
-    notes: [
-      {
-        date: '2024-01-15',
-        note: 'Order placed successfully. Payment confirmed.',
-        type: 'system'
+        status: 'confirmed',
+        title: 'Confirmed',
+        description: 'Order has been confirmed',
+        completed: ['confirmed', 'processing', 'shipped', 'delivered'].includes(status),
+        current: status === 'confirmed',
+        date: 'Today'
       },
       {
-        date: '2024-01-16',
-        note: 'Customer requested expedited shipping. Upgrade applied.',
-        type: 'customer_service'
+        status: 'processing',
+        title: 'Processing',
+        description: 'Seller is preparing your order',
+        completed: ['processing', 'shipped', 'delivered'].includes(status),
+        current: status === 'processing',
+        date: 'Estimated: Today'
+      },
+      {
+        status: 'shipped',
+        title: 'Shipped',
+        description: 'Your order is on the way',
+        completed: ['shipped', 'delivered'].includes(status),
+        current: status === 'shipped',
+        date: 'Estimated: Tomorrow'
+      },
+      {
+        status: 'delivered',
+        title: 'Delivered',
+        description: 'Your order has been delivered',
+        completed: status === 'delivered',
+        current: status === 'delivered',
+        date: 'Delivered'
+      },
+      {
+        status: 'cancelled',
+        title: 'Cancelled',
+        description: 'Order has been cancelled',
+        completed: status === 'cancelled',
+        current: status === 'cancelled',
+        date: 'Cancelled'
       }
-    ]
+    ];
+    return steps;
   };
 
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setOrder(staticOrder);
+    loadOrderData();
+  }, [orderId]);
+
+  const loadOrderData = async () => {
+    try {
+      const orderDetails = await fetchOrderDetails();
+      
+      // Transform API data to match component structure
+      const transformedData = {
+        _id: orderDetails._id,
+        orderNumber: orderDetails.orderNumber || `ORD-${orderDetails._id.slice(-6).toUpperCase()}`,
+        createdAt: orderDetails.createdAt,
+        orderStatus: orderDetails.orderStatus,
+        totalAmount: orderDetails.totalAmount,
+        subtotal: orderDetails.subtotal,
+        shippingFee: orderDetails.shippingFee,
+        tax: (orderDetails.subtotal || 0) * 0.08, // 8% tax
+        items: orderDetails.items?.map(item => ({
+          _id: item._id,
+          product: item.product,
+          name: item.product?.name || 'Product',
+          price: item.price || 0,
+          quantity: item.quantity || 1,
+          image: item.product?.image ? `${API_BASE_URL}/${item.product.image}` : 'https://via.placeholder.com/300',
+          color: 'Standard',
+          size: 'One Size'
+        })) || [],
+        shippingAddress: orderDetails.shippingAddress,
+        paymentMethod: orderDetails.paymentMethod,
+        tracking: {
+          number: `TRK-${orderDetails._id.slice(-8).toUpperCase()}`,
+          carrier: 'Standard Shipping',
+          status: orderDetails.orderStatus,
+          steps: getOrderStatusSteps(orderDetails.orderStatus)
+        }
+      };
+
+      setOrder(transformedData);
+    } catch (error) {
+      console.error('Error loading order data:', error);
+      Alert.alert('Error', 'Failed to load order details');
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, []);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadOrderData();
+  };
 
   const getStatusColor = (status) => {
     const colors = {
-      ordered: '#FFA500',
+      pending: '#FFA500',
       confirmed: '#2196F3',
-      processed: '#9C27B0',
+      processing: '#9C27B0',
       shipped: '#9C27B0',
-      in_transit: '#FF9800',
-      out_for_delivery: '#4CAF50',
       delivered: '#4CAF50',
-      cancelled: '#F44336',
-      returned: '#FF9800'
+      cancelled: '#F44336'
     };
     return colors[status] || '#666';
   };
 
   const getStatusIcon = (status) => {
     const icons = {
-      ordered: 'receipt',
+      pending: 'receipt',
       confirmed: 'checkmark-circle',
-      processed: 'construct',
+      processing: 'construct',
       shipped: 'cube',
-      in_transit: 'car',
-      out_for_delivery: 'walk',
       delivered: 'checkmark-done',
-      cancelled: 'close-circle',
-      returned: 'refresh'
+      cancelled: 'close-circle'
     };
     return icons[status] || 'help';
   };
@@ -212,14 +227,11 @@ const OrderDetailsScreen = () => {
     });
   };
 
-  const formatTime = (timeString) => {
-    return timeString; // In real app, you might want to format this properly
-  };
-
   const trackPackage = () => {
     if (!order?.tracking?.number) return;
     
-    const trackingUrl = `https://www.ups.com/track?tracknum=${order.tracking.number}`;
+    // In a real app, you would use the actual carrier tracking URL
+    const trackingUrl = `https://example.com/track?tracking=${order.tracking.number}`;
     Linking.openURL(trackingUrl).catch(err => {
       Alert.alert('Error', 'Could not open tracking page');
     });
@@ -231,24 +243,44 @@ const OrderDetailsScreen = () => {
       'Would you like to contact customer support about this order?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Call', onPress: () => Linking.openURL('tel:+15551234567') },
-        { text: 'Email', onPress: () => Linking.openURL('mailto:support@store.com') }
+        { text: 'Email', onPress: () => Linking.openURL('mailto:support@example.com') }
       ]
     );
   };
 
-  const reorderItems = () => {
+  const handleReorder = async () => {
+    if (!order) return;
+    
+    try {
+      await reorderItems();
+      Alert.alert('Success', 'All items have been added to your cart!');
+      router.push('/cart');
+    } catch (error) {
+      console.error('Error reordering:', error);
+      Alert.alert('Error', 'Failed to add items to cart. Please try again.');
+    }
+  };
+
+  const handleCancelOrder = async () => {
     if (!order) return;
     
     Alert.alert(
-      'Reorder',
-      'Add all items from this order to your cart?',
+      'Cancel Order',
+      'Are you sure you want to cancel this order?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'No', style: 'cancel' },
         {
-          text: 'Reorder All',
-          onPress: () => {
-            Alert.alert('Success', 'All items have been added to your cart!');
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelOrder();
+              Alert.alert('Success', 'Order has been cancelled successfully');
+              loadOrderData(); // Refresh order data
+            } catch (error) {
+              console.error('Error cancelling order:', error);
+              Alert.alert('Error', error.response?.data?.message || 'Failed to cancel order');
+            }
           }
         }
       ]
@@ -261,7 +293,12 @@ const OrderDetailsScreen = () => {
       `Write a review for ${item.name}?`,
       [
         { text: 'Later', style: 'cancel' },
-        { text: 'Write Review', style: 'default' }
+        { 
+          text: 'Write Review', 
+          onPress: () => {
+            router.push(`/products/review/${item.product._id}`);
+          }
+        }
       ]
     );
   };
@@ -272,7 +309,13 @@ const OrderDetailsScreen = () => {
       `Start return process for ${item.name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Start Return', style: 'default' }
+        { 
+          text: 'Start Return', 
+          onPress: () => {
+            // Navigate to return process
+            console.log('Start return for:', item.name);
+          }
+        }
       ]
     );
   };
@@ -284,12 +327,12 @@ const OrderDetailsScreen = () => {
     return (
       <View style={styles.orderHeader}>
         <View style={styles.orderInfo}>
-          <Text style={styles.orderId}>Order #{order.id}</Text>
-          <Text style={styles.orderDate}>Placed on {formatDate(order.date)}</Text>
+          <Text style={styles.orderId}>Order #{order.orderNumber}</Text>
+          <Text style={styles.orderDate}>Placed on {formatDate(order.createdAt)}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) }]}>
-          <Ionicons name={getStatusIcon(order.status)} size={16} color="#fff" />
-          <Text style={styles.statusText}>{order.status.toUpperCase()}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.orderStatus) }]}>
+          <Ionicons name={getStatusIcon(order.orderStatus)} size={16} color="#fff" />
+          <Text style={styles.statusText}>{order.orderStatus.toUpperCase()}</Text>
         </View>
       </View>
     );
@@ -333,7 +376,7 @@ const OrderDetailsScreen = () => {
       <View style={styles.tabContent}>
         <View style={styles.itemsList}>
           {order.items.map((item, index) => (
-            <View key={item.id} style={styles.itemCard}>
+            <View key={item._id} style={styles.itemCard}>
               <Image source={{ uri: item.image }} style={styles.itemImage} />
               <View style={styles.itemDetails}>
                 <Text style={styles.itemName}>{item.name}</Text>
@@ -343,22 +386,14 @@ const OrderDetailsScreen = () => {
                   <Text style={styles.attribute}>Qty: {item.quantity}</Text>
                 </View>
                 <View style={styles.priceContainer}>
-                  <Text style={styles.currentPrice}>${item.price}</Text>
-                  {item.originalPrice > item.price && (
-                    <Text style={styles.originalPrice}>${item.originalPrice}</Text>
-                  )}
-                  {item.discount > 0 && (
-                    <View style={styles.discountBadge}>
-                      <Text style={styles.discountText}>{item.discount}% OFF</Text>
-                    </View>
-                  )}
+                  <Text style={styles.currentPrice}>৳{item.price}</Text>
                 </View>
                 <Text style={styles.itemTotal}>
-                  ${(item.price * item.quantity).toFixed(2)}
+                  ৳{(item.price * item.quantity).toFixed(2)}
                 </Text>
               </View>
               <View style={styles.itemActions}>
-                {order.status === 'delivered' && (
+                {order.orderStatus === 'delivered' && (
                   <>
                     <TouchableOpacity 
                       style={styles.actionButton}
@@ -378,10 +413,10 @@ const OrderDetailsScreen = () => {
                 )}
                 <TouchableOpacity 
                   style={styles.actionButton}
-                  onPress={() => console.log('Buy again', item.name)}
+                  onPress={() => router.push(`/products/${item.product._id}`)}
                 >
-                  <Ionicons name="cart" size={16} color="#FF6B6B" />
-                  <Text style={styles.actionText}>Buy Again</Text>
+                  <Ionicons name="eye" size={16} color="#666" />
+                  <Text style={styles.actionText}>View</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -393,30 +428,22 @@ const OrderDetailsScreen = () => {
           <Text style={styles.summaryTitle}>Order Summary</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${order.subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>৳{order.subtotal.toFixed(2)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Shipping</Text>
             <Text style={styles.summaryValue}>
-              {order.shipping === 0 ? 'FREE' : `$${order.shipping.toFixed(2)}`}
+              {order.shippingFee === 0 ? 'FREE' : `৳${order.shippingFee.toFixed(2)}`}
             </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tax</Text>
-            <Text style={styles.summaryValue}>${order.tax.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>৳{order.tax.toFixed(2)}</Text>
           </View>
-          {order.discount > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Discount</Text>
-              <Text style={[styles.summaryValue, styles.discountValue]}>
-                -${order.discount.toFixed(2)}
-              </Text>
-            </View>
-          )}
           <View style={styles.divider} />
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${order.total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>৳{order.totalAmount.toFixed(2)}</Text>
           </View>
         </View>
       </View>
@@ -445,51 +472,41 @@ const OrderDetailsScreen = () => {
 
             {/* Timeline */}
             <View style={styles.timeline}>
-              {order.tracking.timeline.map((event, index) => (
-                <View key={index} style={styles.timelineItem}>
+              {order.tracking.steps.map((step, index) => (
+                <View key={step.status} style={styles.timelineItem}>
                   <View style={styles.timelineLeft}>
                     <View style={[
                       styles.timelineDot,
-                      { backgroundColor: getStatusColor(event.status) }
+                      { backgroundColor: step.completed ? getStatusColor(step.status) : '#e0e0e0' }
                     ]}>
-                      <Ionicons 
-                        name={getStatusIcon(event.status)} 
-                        size={12} 
-                        color="#fff" 
-                      />
+                      {step.completed ? (
+                        <Ionicons name="checkmark" size={12} color="#fff" />
+                      ) : (
+                        <View style={styles.pendingStepDot} />
+                      )}
                     </View>
-                    {index < order.tracking.timeline.length - 1 && (
-                      <View style={styles.timelineLine} />
+                    {index < order.tracking.steps.length - 1 && (
+                      <View style={[
+                        styles.timelineLine,
+                        step.completed && styles.timelineLineCompleted
+                      ]} />
                     )}
                   </View>
                   <View style={styles.timelineContent}>
-                    <Text style={styles.timelineDescription}>{event.description}</Text>
-                    <Text style={styles.timelineLocation}>{event.location}</Text>
-                    <Text style={styles.timelineDate}>
-                      {formatDate(event.date)} at {formatTime(event.time)}
+                    <Text style={[
+                      styles.timelineDescription,
+                      step.current && styles.currentStepText
+                    ]}>
+                      {step.title}
                     </Text>
+                    <Text style={styles.timelineDescription}>{step.description}</Text>
+                    <Text style={styles.timelineDate}>{step.date}</Text>
                   </View>
                 </View>
               ))}
             </View>
           </View>
         )}
-
-        {/* Order Notes */}
-        <View style={styles.notesSection}>
-          <Text style={styles.sectionTitle}>Order Notes</Text>
-          {order.notes.map((note, index) => (
-            <View key={index} style={styles.noteItem}>
-              <View style={styles.noteHeader}>
-                <Text style={styles.noteType}>
-                  {note.type === 'system' ? 'System' : 'Customer Service'}
-                </Text>
-                <Text style={styles.noteDate}>{formatDate(note.date)}</Text>
-              </View>
-              <Text style={styles.noteText}>{note.note}</Text>
-            </View>
-          ))}
-        </View>
       </View>
     );
   };
@@ -500,40 +517,25 @@ const OrderDetailsScreen = () => {
     return (
       <View style={styles.tabContent}>
         {/* Shipping Address */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Shipping Address</Text>
-          <View style={styles.addressCard}>
-            <Text style={styles.addressName}>{order.shippingAddress.name}</Text>
-            <Text style={styles.addressText}>{order.shippingAddress.street}</Text>
-            {order.shippingAddress.apartment && (
-              <Text style={styles.addressText}>{order.shippingAddress.apartment}</Text>
-            )}
-            <Text style={styles.addressText}>
-              {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
-            </Text>
-            <Text style={styles.addressText}>{order.shippingAddress.country}</Text>
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactText}>{order.shippingAddress.phone}</Text>
-              <Text style={styles.contactText}>{order.shippingAddress.email}</Text>
+        {order.shippingAddress && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Shipping Address</Text>
+            <View style={styles.addressCard}>
+              <Text style={styles.addressName}>{order.shippingAddress.fullName}</Text>
+              <Text style={styles.addressText}>{order.shippingAddress.addressLine1}</Text>
+              {order.shippingAddress.addressLine2 && (
+                <Text style={styles.addressText}>{order.shippingAddress.addressLine2}</Text>
+              )}
+              <Text style={styles.addressText}>
+                {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}
+              </Text>
+              <Text style={styles.addressText}>{order.shippingAddress.country}</Text>
+              <View style={styles.contactInfo}>
+                <Text style={styles.contactText}>Phone: {order.shippingAddress.phone}</Text>
+              </View>
             </View>
           </View>
-        </View>
-
-        {/* Billing Address */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Billing Address</Text>
-          <View style={styles.addressCard}>
-            <Text style={styles.addressName}>{order.billingAddress.name}</Text>
-            <Text style={styles.addressText}>{order.billingAddress.street}</Text>
-            {order.billingAddress.apartment && (
-              <Text style={styles.addressText}>{order.billingAddress.apartment}</Text>
-            )}
-            <Text style={styles.addressText}>
-              {order.billingAddress.city}, {order.billingAddress.state} {order.billingAddress.zipCode}
-            </Text>
-            <Text style={styles.addressText}>{order.billingAddress.country}</Text>
-          </View>
-        </View>
+        )}
 
         {/* Payment Method */}
         <View style={styles.section}>
@@ -542,9 +544,11 @@ const OrderDetailsScreen = () => {
             <View style={styles.paymentMethod}>
               <Ionicons name="card" size={24} color="#666" />
               <View style={styles.paymentInfo}>
-                <Text style={styles.paymentType}>{order.paymentMethod.type}</Text>
+                <Text style={styles.paymentType}>
+                  {order.paymentMethod === 'card' ? 'Credit/Debit Card' : 'Cash on Delivery'}
+                </Text>
                 <Text style={styles.paymentDetails}>
-                  **** **** **** {order.paymentMethod.last4} • Expires {order.paymentMethod.expiry}
+                  {order.paymentMethod === 'card' ? 'Payment completed' : 'Pay on delivery'}
                 </Text>
               </View>
             </View>
@@ -558,12 +562,12 @@ const OrderDetailsScreen = () => {
             <View style={styles.shippingMethod}>
               <Ionicons name="cube" size={24} color="#666" />
               <View style={styles.shippingInfo}>
-                <Text style={styles.shippingName}>{order.shippingMethod.name}</Text>
+                <Text style={styles.shippingName}>Standard Shipping</Text>
                 <Text style={styles.shippingDetails}>
-                  {order.shippingMethod.carrier} • {order.shippingMethod.estimatedDays}
+                  {order.tracking.carrier} • 5-7 business days
                 </Text>
                 <Text style={styles.shippingPrice}>
-                  {order.shippingMethod.price === 0 ? 'FREE' : `$${order.shippingMethod.price}`}
+                  {order.shippingFee === 0 ? 'FREE' : `৳${order.shippingFee}`}
                 </Text>
               </View>
             </View>
@@ -588,6 +592,40 @@ const OrderDetailsScreen = () => {
     }
   };
 
+  const renderFooterActions = () => {
+    if (!order) return null;
+
+    return (
+      <View style={styles.footer}>
+        <TouchableOpacity 
+          style={styles.supportButton}
+          onPress={contactSupport}
+        >
+          <Ionicons name="headset" size={20} color="#666" />
+          <Text style={styles.supportButtonText}>Support</Text>
+        </TouchableOpacity>
+        
+        {order.orderStatus === 'pending' && (
+          <TouchableOpacity 
+            style={styles.cancelButton}
+            onPress={handleCancelOrder}
+          >
+            <Ionicons name="close-circle" size={20} color="#fff" />
+            <Text style={styles.cancelButtonText}>Cancel Order</Text>
+          </TouchableOpacity>
+        )}
+        
+        <TouchableOpacity 
+          style={styles.reorderButton}
+          onPress={handleReorder}
+        >
+          <Ionicons name="repeat" size={20} color="#fff" />
+          <Text style={styles.reorderButtonText}>Reorder All</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -605,6 +643,9 @@ const OrderDetailsScreen = () => {
         <Text style={styles.errorSubtext}>
           The order you're looking for doesn't exist or has been removed.
         </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadOrderData}>
+          <Text style={styles.retryButtonText}>Try Again</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -616,7 +657,13 @@ const OrderDetailsScreen = () => {
         <Text style={styles.headerTitle}>Order Details</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Order Header */}
         {renderOrderHeader()}
 
@@ -628,26 +675,12 @@ const OrderDetailsScreen = () => {
       </ScrollView>
 
       {/* Action Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.supportButton}
-          onPress={contactSupport}
-        >
-          <Ionicons name="headset" size={20} color="#666" />
-          <Text style={styles.supportButtonText}>Support</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.reorderButton}
-          onPress={reorderItems}
-        >
-          <Ionicons name="repeat" size={20} color="#fff" />
-          <Text style={styles.reorderButtonText}>Reorder All</Text>
-        </TouchableOpacity>
-      </View>
+      {renderFooterActions()}
     </View>
   );
 };
+
+// ... (keep all the existing styles, they remain the same)
 
 const styles = StyleSheet.create({
   container: {
@@ -684,6 +717,18 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     backgroundColor: '#fff',
@@ -816,23 +861,6 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
     marginRight: 8,
   },
-  originalPrice: {
-    fontSize: 12,
-    color: '#999',
-    textDecorationLine: 'line-through',
-    marginRight: 8,
-  },
-  discountBadge: {
-    backgroundColor: '#FF6B6B',
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  discountText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
   itemTotal: {
     fontSize: 14,
     fontWeight: 'bold',
@@ -877,9 +905,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '500',
-  },
-  discountValue: {
-    color: '#4CAF50',
   },
   divider: {
     height: 1,
@@ -946,11 +971,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1,
   },
+  pendingStepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+  },
   timelineLine: {
     width: 2,
     flex: 1,
     backgroundColor: '#e0e0e0',
     marginTop: 4,
+  },
+  timelineLineCompleted: {
+    backgroundColor: '#4CAF50',
   },
   timelineContent: {
     flex: 1,
@@ -958,57 +992,26 @@ const styles = StyleSheet.create({
   },
   timelineDescription: {
     fontSize: 14,
-    fontWeight: '600',
     color: '#333',
     marginBottom: 2,
   },
-  timelineLocation: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
+  currentStepText: {
+    fontWeight: '600',
+    color: '#FF6B6B',
   },
   timelineDate: {
     fontSize: 11,
     color: '#999',
   },
-  notesSection: {
-    marginTop: 10,
+  // Shipping Tab
+  section: {
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 12,
-  },
-  noteItem: {
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  noteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  noteType: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  noteDate: {
-    fontSize: 11,
-    color: '#999',
-  },
-  noteText: {
-    fontSize: 14,
-    color: '#333',
-    lineHeight: 18,
-  },
-  // Shipping Tab
-  section: {
-    marginBottom: 20,
   },
   addressCard: {
     backgroundColor: '#f8f9fa',
@@ -1097,6 +1100,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#f0f0f0',
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
   },
   supportButton: {
     flex: 1,
@@ -1106,7 +1110,6 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
-    marginRight: 10,
   },
   supportButtonText: {
     marginLeft: 8,
@@ -1114,8 +1117,23 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '500',
   },
+  cancelButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    backgroundColor: '#F44336',
+    borderRadius: 8,
+  },
+  cancelButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
   reorderButton: {
-    flex: 2,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

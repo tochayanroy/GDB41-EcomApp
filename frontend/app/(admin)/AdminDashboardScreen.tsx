@@ -12,8 +12,12 @@ import {
   ActivityIndicator,
   FlatList
 } from 'react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
+
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const AdminDashboardScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -30,103 +34,141 @@ const AdminDashboardScreen = ({ navigation }) => {
     { id: 'year', label: 'This Year' }
   ];
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [selectedTimeRange]);
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  };
+
+  const fetchDashboardStats = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/order/admin/orders`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        params: {
+          timeRange: selectedTimeRange
+        }
+      });
+
+      // Calculate stats from orders data
+      const orders = response.data.orders || [];
+      const totalRevenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+      const totalOrders = orders.length;
+      const pendingOrders = orders.filter(order => order.orderStatus === 'pending').length;
+      const completedOrders = orders.filter(order => order.orderStatus === 'delivered').length;
+      
+      // For demo purposes - in real app, these would come from separate API endpoints
+      const newCustomers = Math.floor(Math.random() * 50) + 20; // Mock data
+      const conversionRate = parseFloat((Math.random() * 5 + 1).toFixed(1));
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+      const refunds = orders.filter(order => order.orderStatus === 'cancelled').length;
+
+      setStats({
+        totalRevenue,
+        totalOrders,
+        pendingOrders,
+        completedOrders,
+        newCustomers,
+        conversionRate,
+        averageOrderValue,
+        refunds
+      });
+
+      return orders;
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      Alert.alert('Error', 'Failed to load dashboard data');
+      return [];
+    }
+  };
+
+  const fetchRecentOrders = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/order/admin/orders`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        params: {
+          limit: 5,
+          page: 1,
+          sort: 'createdAt'
+        }
+      });
+
+      const orders = response.data.orders || [];
+      const formattedOrders = orders.map(order => ({
+        id: order._id,
+        customer: order.user?.username || 'Unknown Customer',
+        amount: order.totalAmount || 0,
+        status: order.orderStatus || 'pending',
+        date: new Date(order.createdAt).toISOString().split('T')[0],
+        items: order.items?.length || 0
+      }));
+
+      setRecentOrders(formattedOrders);
+      return formattedOrders;
+    } catch (error) {
+      console.error('Error fetching recent orders:', error);
+      return [];
+    }
+  };
+
+  const fetchTopProducts = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/product/allProduct`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const products = response.data || [];
+      // For demo - in real app, you'd have sales data from orders
+      const topProductsData = products.slice(0, 4).map((product, index) => ({
+        id: product._id,
+        name: product.name,
+        sales: Math.floor(Math.random() * 50) + 20, // Mock sales data
+        revenue: (product.price || 0) * (Math.floor(Math.random() * 50) + 20), // Mock revenue
+        image: product.image
+      }));
+
+      setTopProducts(topProductsData);
+      return topProductsData;
+    } catch (error) {
+      console.error('Error fetching top products:', error);
+      return [];
+    }
+  };
 
   const loadDashboardData = async () => {
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setStats({
-        totalRevenue: 12540.75,
-        totalOrders: 342,
-        pendingOrders: 28,
-        completedOrders: 289,
-        newCustomers: 45,
-        conversionRate: 3.2,
-        averageOrderValue: 146.75,
-        refunds: 8
-      });
-
-      setRecentOrders([
-        {
-          id: 'ORD-784329',
-          customer: 'John Doe',
-          amount: 194.61,
-          status: 'delivered',
-          date: '2024-12-20',
-          items: 3
-        },
-        {
-          id: 'ORD-784328',
-          customer: 'Sarah Wilson',
-          amount: 89.99,
-          status: 'shipped',
-          date: '2024-12-20',
-          items: 2
-        },
-        {
-          id: 'ORD-784327',
-          customer: 'Mike Johnson',
-          amount: 245.50,
-          status: 'processing',
-          date: '2024-12-19',
-          items: 4
-        },
-        {
-          id: 'ORD-784326',
-          customer: 'Emily Davis',
-          amount: 67.25,
-          status: 'pending',
-          date: '2024-12-19',
-          items: 1
-        },
-        {
-          id: 'ORD-784325',
-          customer: 'Robert Brown',
-          amount: 156.80,
-          status: 'cancelled',
-          date: '2024-12-18',
-          items: 2
-        }
+    try {
+      const [orders, recentOrdersData, topProductsData] = await Promise.all([
+        fetchDashboardStats(),
+        fetchRecentOrders(),
+        fetchTopProducts()
       ]);
 
-      setTopProducts([
-        {
-          id: '1',
-          name: 'Wireless Headphones',
-          sales: 45,
-          revenue: 4499.55,
-          image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'
-        },
-        {
-          id: '2',
-          name: 'Running Shoes',
-          sales: 38,
-          revenue: 3039.62,
-          image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100'
-        },
-        {
-          id: '3',
-          name: 'Smart Watch',
-          sales: 32,
-          revenue: 6399.68,
-          image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100'
-        },
-        {
-          id: '4',
-          name: 'Backpack',
-          sales: 28,
-          revenue: 1679.72,
-          image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=100'
-        }
-      ]);
-
+      console.log('Dashboard data loaded successfully');
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      Alert.alert('Error', 'Failed to load dashboard data');
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [selectedTimeRange]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -180,7 +222,10 @@ const AdminDashboardScreen = ({ navigation }) => {
         <Ionicons name={icon} size={24} color={color} />
         <Text style={styles.statTitle}>{title}</Text>
       </View>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statValue}>
+        {typeof value === 'number' && title.includes('Revenue') ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 
+         typeof value === 'number' && title.includes('Rate') ? `${value}%` : value}
+      </Text>
       <Text style={styles.statSubtitle}>{subtitle}</Text>
     </View>
   );
@@ -191,7 +236,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       onPress={() => handleOrderPress(item)}
     >
       <View style={styles.orderInfo}>
-        <Text style={styles.orderId}>{item.id}</Text>
+        <Text style={styles.orderId}>ORD-{item.id.slice(-6).toUpperCase()}</Text>
         <Text style={styles.orderCustomer}>{item.customer}</Text>
         <Text style={styles.orderDate}>{item.date}</Text>
       </View>
@@ -199,7 +244,7 @@ const AdminDashboardScreen = ({ navigation }) => {
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
           <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
         </View>
-        <Text style={styles.orderAmount}>${item.amount}</Text>
+        <Text style={styles.orderAmount}>${item.amount.toFixed(2)}</Text>
         <Text style={styles.orderItems}>{item.items} items</Text>
       </View>
     </TouchableOpacity>
@@ -215,7 +260,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     </View>
   );
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF6B6B" />
@@ -277,40 +322,42 @@ const AdminDashboardScreen = ({ navigation }) => {
         </View>
 
         {/* Stats Grid */}
-        <View style={styles.statsGrid}>
-          <View style={styles.statsRow}>
-            {renderStatCard(
-              'cash-outline',
-              'Total Revenue',
-              `$${stats.totalRevenue.toLocaleString()}`,
-              '+12% from last period',
-              '#4CAF50'
-            )}
-            {renderStatCard(
-              'cart-outline',
-              'Total Orders',
-              stats.totalOrders.toString(),
-              `${stats.pendingOrders} pending`,
-              '#FF6B6B'
-            )}
+        {stats && (
+          <View style={styles.statsGrid}>
+            <View style={styles.statsRow}>
+              {renderStatCard(
+                'cash-outline',
+                'Total Revenue',
+                stats.totalRevenue,
+                '+12% from last period',
+                '#4CAF50'
+              )}
+              {renderStatCard(
+                'cart-outline',
+                'Total Orders',
+                stats.totalOrders,
+                `${stats.pendingOrders} pending`,
+                '#FF6B6B'
+              )}
+            </View>
+            <View style={styles.statsRow}>
+              {renderStatCard(
+                'people-outline',
+                'New Customers',
+                stats.newCustomers,
+                'Customer acquisition',
+                '#2196F3'
+              )}
+              {renderStatCard(
+                'trending-up-outline',
+                'Conversion Rate',
+                stats.conversionRate,
+                'Website performance',
+                '#FFA726'
+              )}
+            </View>
           </View>
-          <View style={styles.statsRow}>
-            {renderStatCard(
-              'people-outline',
-              'New Customers',
-              stats.newCustomers.toString(),
-              'Customer acquisition',
-              '#2196F3'
-            )}
-            {renderStatCard(
-              'trending-up-outline',
-              'Conversion Rate',
-              `${stats.conversionRate}%`,
-              'Website performance',
-              '#FFA726'
-            )}
-          </View>
-        </View>
+        )}
 
         {/* Quick Actions */}
         <View style={styles.section}>
@@ -366,13 +413,17 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Text style={styles.seeAllText}>View All</Text>
             </TouchableOpacity>
           </View>
-          <FlatList
-            data={recentOrders}
-            renderItem={renderOrderItem}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.ordersList}
-          />
+          {recentOrders.length > 0 ? (
+            <FlatList
+              data={recentOrders}
+              renderItem={renderOrderItem}
+              keyExtractor={item => item.id}
+              scrollEnabled={false}
+              contentContainerStyle={styles.ordersList}
+            />
+          ) : (
+            <Text style={styles.noDataText}>No recent orders</Text>
+          )}
         </View>
 
         {/* Top Products */}
@@ -383,41 +434,47 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Text style={styles.seeAllText}>View All</Text>
             </TouchableOpacity>
           </View>
-          <FlatList
-            data={topProducts}
-            renderItem={renderProductItem}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.productsList}
-          />
+          {topProducts.length > 0 ? (
+            <FlatList
+              data={topProducts}
+              renderItem={renderProductItem}
+              keyExtractor={item => item.id}
+              scrollEnabled={false}
+              contentContainerStyle={styles.productsList}
+            />
+          ) : (
+            <Text style={styles.noDataText}>No products data</Text>
+          )}
         </View>
 
         {/* Performance Metrics */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Performance Metrics</Text>
-          <View style={styles.metricsGrid}>
-            <View style={styles.metricCard}>
-              <Ionicons name="time-outline" size={20} color="#666" />
-              <Text style={styles.metricValue}>2.1 days</Text>
-              <Text style={styles.metricLabel}>Avg. Delivery Time</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Ionicons name="star-outline" size={20} color="#666" />
-              <Text style={styles.metricValue}>4.8/5</Text>
-              <Text style={styles.metricLabel}>Customer Rating</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Ionicons name="refresh-outline" size={20} color="#666" />
-              <Text style={styles.metricValue}>2.3%</Text>
-              <Text style={styles.metricLabel}>Return Rate</Text>
-            </View>
-            <View style={styles.metricCard}>
-              <Ionicons name="chatbubble-outline" size={20} color="#666" />
-              <Text style={styles.metricValue}>98%</Text>
-              <Text style={styles.metricLabel}>Response Rate</Text>
+        {stats && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Performance Metrics</Text>
+            <View style={styles.metricsGrid}>
+              <View style={styles.metricCard}>
+                <Ionicons name="time-outline" size={20} color="#666" />
+                <Text style={styles.metricValue}>2.1 days</Text>
+                <Text style={styles.metricLabel}>Avg. Delivery Time</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Ionicons name="star-outline" size={20} color="#666" />
+                <Text style={styles.metricValue}>4.8/5</Text>
+                <Text style={styles.metricLabel}>Customer Rating</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Ionicons name="refresh-outline" size={20} color="#666" />
+                <Text style={styles.metricValue}>{stats.refunds}</Text>
+                <Text style={styles.metricLabel}>Cancellations</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Ionicons name="cash-outline" size={20} color="#666" />
+                <Text style={styles.metricValue}>${stats.averageOrderValue.toFixed(2)}</Text>
+                <Text style={styles.metricLabel}>Avg. Order Value</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -711,6 +768,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#666',
     textAlign: 'center',
+  },
+  noDataText: {
+    textAlign: 'center',
+    color: '#666',
+    fontSize: 14,
+    fontStyle: 'italic',
+    padding: 20,
   },
 });
 

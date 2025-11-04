@@ -20,7 +20,7 @@ import axios from 'axios';
 
 const { width, height } = Dimensions.get('window');
 
-const API_BASE_URL = 'http://192.168.0.101:5000';
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const OTPVerificationScreen = () => {
   const router = useRouter();
@@ -93,6 +93,8 @@ const OTPVerificationScreen = () => {
 
   // API Call to Verify OTP using Axios
   const verifyOtpAPI = async (otpCode) => {
+    console.log(otpCode);
+    
     try {
       const response = await axios.post(`${API_BASE_URL}/user/verifyEmail`, {
         email: email,

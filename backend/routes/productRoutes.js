@@ -19,6 +19,16 @@ router.post('/addProduct', passport.authenticate('jwt', { session: false }), sin
             categorie,
         } = req.body;
 
+        console.log(categorie);
+        console.log(quantity);
+        console.log(quantity);
+        console.log(discount);
+        console.log(price);
+        
+
+        
+        
+        
         
         // Check if category exists
         const category = await Category.findById(categorie);
@@ -92,13 +102,14 @@ router.get('/getFilteredProduct', async (req, res) => {
     }
 });
 
-// GET /api/products/:id - Get single product
 router.get('/getProduct/:id', async (req, res) => {
     try {
         const product = await Product.findById(req.params.id).populate('categorie');
+        
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
         } 
+        
         res.json(product);
     } catch (err) {
         console.error(err);
@@ -221,63 +232,6 @@ router.get('/category/:categoryId', async (req, res) => {
         console.error(err);
         if (err.kind === 'ObjectId') {
             return res.status(404).json({ message: 'Category not found' });
-        }
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-
-// POST /api/products/:id/reviews - Add product review
-router.post('/:id/reviews', passport.authenticate('jwt', { session: false }), async (req, res) => {
-    try {
-        const { rating, comment } = req.body;
-
-        const product = await Product.findById(req.params.id);
-        if (!product) {
-            return res.status(404).json({ message: 'Product not found' });
-        }
-
-        const review = {
-            user: req.user.id,
-            rating: Number(rating),
-            comment,
-            createdAt: new Date()
-        };
-
-        product.reviews.push(review);
-        product.numReviews = product.reviews.length;
-
-        // Calculate average rating
-        product.rating = product.reviews.reduce((acc, item) => item.rating + acc, 0) /
-            product.reviews.length;
-
-        await product.save();
-
-        res.status(201).json({ message: 'Review added successfully' });
-    } catch (err) {
-        console.error(err);
-        if (err.kind === 'ObjectId') {
-            return res.status(404).json({ message: 'Product not found' });
-        }
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-
-// GET /api/products/:id/reviews - Get product reviews
-router.get('/:id/reviews', async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.id)
-            .select('reviews')
-            .populate('reviews.user', 'username profileImage');
-
-        if (!product) {
-            return res.status(404).json({ message: 'Product not found' });
-        }
-
-        res.json(product.reviews);
-    } catch (err) {
-        console.error(err);
-        if (err.kind === 'ObjectId') {
-            return res.status(404).json({ message: 'Product not found' });
         }
         res.status(500).json({ message: 'Server error' });
     }

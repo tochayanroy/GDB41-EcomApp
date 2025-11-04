@@ -12,15 +12,20 @@ import {
     Alert,
     ActivityIndicator,
     Switch,
-    Modal
+    RefreshControl
 } from 'react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+
+const API_BASE_URL = 'http://192.168.0.102:5000';
 
 const UserProfileScreen = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('profile'); // profile, settings, orders
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile');
   const [editMode, setEditMode] = useState(false);
   const [notifications, setNotifications] = useState({
     email: true,
@@ -36,96 +41,150 @@ const UserProfileScreen = () => {
     searchVisibility: true
   });
 
-  // Static user data
-  const staticUser = {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '+1 (555) 123-4567',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300',
-    joinDate: '2023-01-15',
-    membership: 'Gold Member',
-    points: 1250,
-    addresses: [
-      {
-        id: '1',
-        type: 'home',
-        name: 'Home',
-        street: '123 Main Street',
-        apartment: 'Apt 4B',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        country: 'United States',
-        isDefault: true
-      },
-      {
-        id: '2',
-        type: 'work',
-        name: 'Work',
-        street: '456 Business Ave',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10002',
-        country: 'United States',
-        isDefault: false
-      }
-    ],
-    paymentMethods: [
-      {
-        id: '1',
-        type: 'Credit Card',
-        last4: '4242',
-        brand: 'Visa',
-        expiry: '12/25',
-        isDefault: true
-      },
-      {
-        id: '2',
-        type: 'PayPal',
-        email: 'john.doe@example.com',
-        isDefault: false
-      }
-    ],
-    stats: {
-      totalOrders: 15,
-      completedOrders: 12,
-      pendingOrders: 2,
-      cancelledOrders: 1,
-      totalSpent: 2450.75,
-      favoriteCategory: 'Electronics'
-    }
-  };
-
   // User form state
   const [userForm, setUserForm] = useState({
-    name: '',
+    username: '',
     email: '',
-    phone: '',
+    phoneNumber: '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
 
-  useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setUser(staticUser);
-      setUserForm({
-        name: staticUser.name,
-        email: staticUser.email,
-        phone: staticUser.phone,
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
+  const getAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  };
+
+  // API Functions
+  const fetchUserProfile = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(`${API_BASE_URL}/user/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
-      setLoading(false);
-    }, 1000);
+      return response.data.existUser;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      throw error;
+    }
+  };
+
+  const updateUserProfile = async (userData) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.put(`${API_BASE_URL}/user/profile`, 
+        userData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      throw error;
+    }
+  };
+
+  const changePassword = async (passwordData) => {
+    try {
+      const token = await getAuthToken();
+      const response = await axios.put(`${API_BASE_URL}/user/change-password`, 
+        passwordData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error changing password:', error);
+      throw error;
+    }
+  };
+
+  const uploadProfilePicture = async (imageUri) => {
+    try {
+      const token = await getAuthToken();
+      const formData = new FormData();
+      formData.append('image', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: 'profile.jpg'
+      });
+
+      const response = await axios.post(`${API_BASE_URL}/user/upload-profile-picture`, 
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
+      throw error;
+    }
+  };
+
+  const logoutUser = async () => {
+    try {
+      await AsyncStorage.removeItem('auth_token');
+      // You might want to navigate to login screen here
+      Alert.alert('Success', 'Logged out successfully');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadUserProfile();
   }, []);
 
-  const handleSaveProfile = () => {
+  const loadUserProfile = async () => {
+    setLoading(true);
+    try {
+      const userData = await fetchUserProfile();
+      if (userData) {
+        setUser(userData);
+        setUserForm({
+          username: userData.username || '',
+          email: userData.email || '',
+          phoneNumber: userData.phoneNumber || '',
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+      Alert.alert('Error', 'Failed to load user profile');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadUserProfile();
+  };
+
+  const handleSaveProfile = async () => {
     // Validate form
-    if (!userForm.name.trim() || !userForm.email.trim()) {
+    if (!userForm.username.trim() || !userForm.email.trim()) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
@@ -135,22 +194,27 @@ const UserProfileScreen = () => {
       return;
     }
 
-    // Simulate API call
     setLoading(true);
-    setTimeout(() => {
-      setUser(prev => ({
-        ...prev,
-        name: userForm.name,
+    try {
+      const updateData = {
+        username: userForm.username,
         email: userForm.email,
-        phone: userForm.phone
-      }));
+        phoneNumber: userForm.phoneNumber
+      };
+
+      await updateUserProfile(updateData);
+      await loadUserProfile(); // Reload to get updated data
       setEditMode(false);
-      setLoading(false);
       Alert.alert('Success', 'Profile updated successfully!');
-    }, 1000);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!userForm.currentPassword || !userForm.newPassword || !userForm.confirmPassword) {
       Alert.alert('Error', 'Please fill in all password fields');
       return;
@@ -166,18 +230,45 @@ const UserProfileScreen = () => {
       return;
     }
 
-    // Simulate password change
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const passwordData = {
+        currentPassword: userForm.currentPassword,
+        newPassword: userForm.newPassword
+      };
+
+      await changePassword(passwordData);
       setUserForm(prev => ({
         ...prev,
         currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       }));
-      setLoading(false);
       Alert.alert('Success', 'Password changed successfully!');
-    }, 1000);
+    } catch (error) {
+      console.error('Error changing password:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProfilePictureUpload = async () => {
+    // This would typically use ImagePicker to select an image
+    Alert.alert(
+      'Upload Profile Picture',
+      'This feature would open your camera/gallery to select a new profile picture',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'OK', 
+          onPress: () => {
+            // Simulate image upload
+            Alert.alert('Info', 'Image upload functionality would be implemented here');
+          }
+        }
+      ]
+    );
   };
 
   const toggleNotification = (key) => {
@@ -195,6 +286,7 @@ const UserProfileScreen = () => {
   };
 
   const formatJoinDate = (dateString) => {
+    if (!dateString) return 'Recently';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -202,35 +294,39 @@ const UserProfileScreen = () => {
     });
   };
 
-  const getMembershipColor = (membership) => {
-    const colors = {
-      'Gold Member': '#FFD700',
-      'Silver Member': '#C0C0C0',
-      'Bronze Member': '#CD7F32',
-      'Basic Member': '#666'
-    };
-    return colors[membership] || '#666';
+  const getMembershipColor = () => {
+    return '#FF6B6B'; // Default color for all members
   };
 
-  // Render functions with null checks
+  // Render functions
   const renderProfileHeader = () => {
     if (!user) return null;
 
     return (
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
-          <Image source={{ uri: user.avatar }} style={styles.avatar} />
-          <TouchableOpacity style={styles.editAvatarButton}>
+          <Image 
+            source={{ 
+              uri: user.image ? `${API_BASE_URL}/${user.image}` : 'https://via.placeholder.com/300'
+            }} 
+            style={styles.avatar} 
+          />
+          <TouchableOpacity 
+            style={styles.editAvatarButton}
+            onPress={handleProfilePictureUpload}
+          >
             <Ionicons name="camera" size={16} color="#fff" />
           </TouchableOpacity>
         </View>
         <View style={styles.userInfo}>
-          <Text style={styles.userName}>{user.name}</Text>
+          <Text style={styles.userName}>{user.username}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
-          <View style={[styles.membershipBadge, { backgroundColor: getMembershipColor(user.membership) }]}>
-            <Text style={styles.membershipText}>{user.membership}</Text>
+          <View style={[styles.membershipBadge, { backgroundColor: getMembershipColor() }]}>
+            <Text style={styles.membershipText}>Premium Member</Text>
           </View>
-          <Text style={styles.joinDate}>Member since {formatJoinDate(user.joinDate)}</Text>
+          <Text style={styles.joinDate}>
+            Member since {formatJoinDate(user.createdAt)}
+          </Text>
         </View>
       </View>
     );
@@ -244,19 +340,19 @@ const UserProfileScreen = () => {
         <Text style={styles.sectionTitle}>Your Activity</Text>
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user.stats.totalOrders}</Text>
+            <Text style={styles.statNumber}>0</Text>
             <Text style={styles.statLabel}>Total Orders</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user.stats.completedOrders}</Text>
+            <Text style={styles.statNumber}>0</Text>
             <Text style={styles.statLabel}>Completed</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user.points}</Text>
+            <Text style={styles.statNumber}>0</Text>
             <Text style={styles.statLabel}>Reward Points</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>${user.stats.totalSpent}</Text>
+            <Text style={styles.statNumber}>$0</Text>
             <Text style={styles.statLabel}>Total Spent</Text>
           </View>
         </View>
@@ -288,8 +384,8 @@ const UserProfileScreen = () => {
               </View>
               <View style={styles.infoGrid}>
                 <View style={styles.infoItem}>
-                  <Text style={styles.infoLabel}>Full Name</Text>
-                  <Text style={styles.infoValue}>{user.name}</Text>
+                  <Text style={styles.infoLabel}>Username</Text>
+                  <Text style={styles.infoValue}>{user.username}</Text>
                 </View>
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Email Address</Text>
@@ -297,16 +393,16 @@ const UserProfileScreen = () => {
                 </View>
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Phone Number</Text>
-                  <Text style={styles.infoValue}>{user.phone}</Text>
+                  <Text style={styles.infoValue}>{user.phoneNumber || 'Not provided'}</Text>
                 </View>
                 <View style={styles.infoItem}>
                   <Text style={styles.infoLabel}>Member ID</Text>
-                  <Text style={styles.infoValue}>{user.id}</Text>
+                  <Text style={styles.infoValue}>{user._id?.substring(0, 8) || 'N/A'}</Text>
                 </View>
               </View>
             </View>
 
-            {/* Addresses */}
+            {/* Addresses Section - Placeholder */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Saved Addresses</Text>
@@ -315,39 +411,16 @@ const UserProfileScreen = () => {
                   <Text style={styles.addButtonText}>Add New</Text>
                 </TouchableOpacity>
               </View>
-              {user.addresses.map(address => (
-                <View key={address.id} style={styles.addressCard}>
-                  <View style={styles.addressHeader}>
-                    <View style={styles.addressType}>
-                      <Ionicons 
-                        name={address.type === 'home' ? 'home' : 'business'} 
-                        size={16} 
-                        color="#666" 
-                      />
-                      <Text style={styles.addressName}>{address.name}</Text>
-                      {address.isDefault && (
-                        <View style={styles.defaultBadge}>
-                          <Text style={styles.defaultBadgeText}>Default</Text>
-                        </View>
-                      )}
-                    </View>
-                    <TouchableOpacity>
-                      <Ionicons name="create-outline" size={16} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.addressText}>{address.street}</Text>
-                  {address.apartment && (
-                    <Text style={styles.addressText}>{address.apartment}</Text>
-                  )}
-                  <Text style={styles.addressText}>
-                    {address.city}, {address.state} {address.zipCode}
-                  </Text>
-                  <Text style={styles.addressText}>{address.country}</Text>
-                </View>
-              ))}
+              <View style={styles.placeholderCard}>
+                <Ionicons name="location-outline" size={32} color="#ccc" />
+                <Text style={styles.placeholderText}>No addresses saved yet</Text>
+                <Text style={styles.placeholderSubtext}>
+                  Add your addresses for faster checkout
+                </Text>
+              </View>
             </View>
 
-            {/* Payment Methods */}
+            {/* Payment Methods Section - Placeholder */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Payment Methods</Text>
@@ -356,24 +429,13 @@ const UserProfileScreen = () => {
                   <Text style={styles.addButtonText}>Add New</Text>
                 </TouchableOpacity>
               </View>
-              {user.paymentMethods.map(payment => (
-                <View key={payment.id} style={styles.paymentCard}>
-                  <View style={styles.paymentMethod}>
-                    <Ionicons name="card" size={20} color="#666" />
-                    <View style={styles.paymentInfo}>
-                      <Text style={styles.paymentType}>{payment.type}</Text>
-                      <Text style={styles.paymentDetails}>
-                        {payment.last4 ? `**** **** **** ${payment.last4}` : payment.email}
-                      </Text>
-                    </View>
-                  </View>
-                  {payment.isDefault && (
-                    <View style={styles.defaultBadge}>
-                      <Text style={styles.defaultBadgeText}>Default</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
+              <View style={styles.placeholderCard}>
+                <Ionicons name="card-outline" size={32} color="#ccc" />
+                <Text style={styles.placeholderText}>No payment methods saved</Text>
+                <Text style={styles.placeholderSubtext}>
+                  Add your payment methods for faster checkout
+                </Text>
+              </View>
             </View>
           </>
         ) : (
@@ -381,12 +443,12 @@ const UserProfileScreen = () => {
             <Text style={styles.sectionTitle}>Edit Profile</Text>
             
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Full Name *</Text>
+              <Text style={styles.label}>Username *</Text>
               <TextInput
                 style={styles.input}
-                value={userForm.name}
-                onChangeText={(text) => setUserForm(prev => ({ ...prev, name: text }))}
-                placeholder="Enter your full name"
+                value={userForm.username}
+                onChangeText={(text) => setUserForm(prev => ({ ...prev, username: text }))}
+                placeholder="Enter your username"
               />
             </View>
 
@@ -406,8 +468,8 @@ const UserProfileScreen = () => {
               <Text style={styles.label}>Phone Number</Text>
               <TextInput
                 style={styles.input}
-                value={userForm.phone}
-                onChangeText={(text) => setUserForm(prev => ({ ...prev, phone: text }))}
+                value={userForm.phoneNumber}
+                onChangeText={(text) => setUserForm(prev => ({ ...prev, phoneNumber: text }))}
                 placeholder="Enter your phone number"
                 keyboardType="phone-pad"
               />
@@ -419,9 +481,9 @@ const UserProfileScreen = () => {
                 onPress={() => {
                   setEditMode(false);
                   setUserForm({
-                    name: user.name,
+                    username: user.username,
                     email: user.email,
-                    phone: user.phone,
+                    phoneNumber: user.phoneNumber,
                     currentPassword: '',
                     newPassword: '',
                     confirmPassword: ''
@@ -433,8 +495,13 @@ const UserProfileScreen = () => {
               <TouchableOpacity 
                 style={styles.saveButton}
                 onPress={handleSaveProfile}
+                disabled={loading}
               >
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -471,73 +538,6 @@ const UserProfileScreen = () => {
               onValueChange={() => toggleNotification('push')}
               trackColor={{ false: '#767577', true: '#81b0ff' }}
               thumbColor={notifications.push ? '#FF6B6B' : '#f4f3f4'}
-            />
-          </View>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingName}>Order Updates</Text>
-              <Text style={styles.settingDescription}>Get order status updates</Text>
-            </View>
-            <Switch
-              value={notifications.orderUpdates}
-              onValueChange={() => toggleNotification('orderUpdates')}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={notifications.orderUpdates ? '#FF6B6B' : '#f4f3f4'}
-            />
-          </View>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingName}>Promotions & Offers</Text>
-              <Text style={styles.settingDescription}>Special deals and discounts</Text>
-            </View>
-            <Switch
-              value={notifications.promotions}
-              onValueChange={() => toggleNotification('promotions')}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={notifications.promotions ? '#FF6B6B' : '#f4f3f4'}
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* Privacy & Security */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Privacy & Security</Text>
-        <View style={styles.settingsList}>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingName}>Show Online Status</Text>
-              <Text style={styles.settingDescription}>Allow others to see when you're online</Text>
-            </View>
-            <Switch
-              value={privacySettings.showOnlineStatus}
-              onValueChange={() => togglePrivacySetting('showOnlineStatus')}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={privacySettings.showOnlineStatus ? '#FF6B6B' : '#f4f3f4'}
-            />
-          </View>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingName}>Allow Friend Requests</Text>
-              <Text style={styles.settingDescription}>Let other users send you friend requests</Text>
-            </View>
-            <Switch
-              value={privacySettings.allowFriendRequests}
-              onValueChange={() => togglePrivacySetting('allowFriendRequests')}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={privacySettings.allowFriendRequests ? '#FF6B6B' : '#f4f3f4'}
-            />
-          </View>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingName}>Search Visibility</Text>
-              <Text style={styles.settingDescription}>Allow your profile to appear in search results</Text>
-            </View>
-            <Switch
-              value={privacySettings.searchVisibility}
-              onValueChange={() => togglePrivacySetting('searchVisibility')}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={privacySettings.searchVisibility ? '#FF6B6B' : '#f4f3f4'}
             />
           </View>
         </View>
@@ -580,8 +580,13 @@ const UserProfileScreen = () => {
           <TouchableOpacity 
             style={styles.changePasswordButton}
             onPress={handleChangePassword}
+            disabled={loading}
           >
-            <Text style={styles.changePasswordButtonText}>Change Password</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.changePasswordButtonText}>Change Password</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -591,12 +596,8 @@ const UserProfileScreen = () => {
         <Text style={styles.sectionTitle}>Account Actions</Text>
         <View style={styles.accountActions}>
           <TouchableOpacity style={styles.accountAction}>
-            <Ionicons name="download-outline" size={20} color="#666" />
-            <Text style={styles.accountActionText}>Download Data</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.accountAction}>
-            <Ionicons name="lock-closed-outline" size={20} color="#666" />
-            <Text style={styles.accountActionText}>Deactivate Account</Text>
+            <Ionicons name="log-out-outline" size={20} color="#666" />
+            <Text style={styles.accountActionText}>Logout</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.accountAction, styles.deleteAction]}>
             <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
@@ -615,61 +616,31 @@ const UserProfileScreen = () => {
         <View style={styles.ordersOverview}>
           <View style={styles.orderStat}>
             <Ionicons name="time-outline" size={24} color="#FFA500" />
-            <Text style={styles.orderStatNumber}>{user.stats.pendingOrders}</Text>
+            <Text style={styles.orderStatNumber}>0</Text>
             <Text style={styles.orderStatLabel}>Pending</Text>
           </View>
           <View style={styles.orderStat}>
             <Ionicons name="checkmark-done-outline" size={24} color="#4CAF50" />
-            <Text style={styles.orderStatNumber}>{user.stats.completedOrders}</Text>
+            <Text style={styles.orderStatNumber}>0</Text>
             <Text style={styles.orderStatLabel}>Completed</Text>
           </View>
           <View style={styles.orderStat}>
             <Ionicons name="close-outline" size={24} color="#F44336" />
-            <Text style={styles.orderStatNumber}>{user.stats.cancelledOrders}</Text>
+            <Text style={styles.orderStatNumber}>0</Text>
             <Text style={styles.orderStatLabel}>Cancelled</Text>
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
-          <View style={styles.activityList}>
-            <View style={styles.activityItem}>
-              <View style={styles.activityIcon}>
-                <Ionicons name="cart-outline" size={20} color="#4CAF50" />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Order Completed</Text>
-                <Text style={styles.activityDescription}>Your order #ORD-015 has been delivered</Text>
-                <Text style={styles.activityTime}>2 hours ago</Text>
-              </View>
-            </View>
-            <View style={styles.activityItem}>
-              <View style={styles.activityIcon}>
-                <Ionicons name="star-outline" size={20} color="#FFD700" />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Review Added</Text>
-                <Text style={styles.activityDescription}>You reviewed Wireless Headphones</Text>
-                <Text style={styles.activityTime}>1 day ago</Text>
-              </View>
-            </View>
-            <View style={styles.activityItem}>
-              <View style={styles.activityIcon}>
-                <Ionicons name="card-outline" size={20} color="#2196F3" />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Payment Method Updated</Text>
-                <Text style={styles.activityDescription}>You added a new credit card</Text>
-                <Text style={styles.activityTime}>3 days ago</Text>
-              </View>
-            </View>
+          <View style={styles.placeholderCard}>
+            <Ionicons name="receipt-outline" size={32} color="#ccc" />
+            <Text style={styles.placeholderText}>No orders yet</Text>
+            <Text style={styles.placeholderSubtext}>
+              Your order history will appear here
+            </Text>
           </View>
         </View>
-
-        <TouchableOpacity style={styles.viewAllOrdersButton}>
-          <Text style={styles.viewAllOrdersText}>View All Orders</Text>
-          <Ionicons name="arrow-forward" size={16} color="#FF6B6B" />
-        </TouchableOpacity>
       </View>
     );
   };
@@ -735,7 +706,7 @@ const UserProfileScreen = () => {
     </View>
   );
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF6B6B" />
@@ -754,21 +725,7 @@ const UserProfileScreen = () => {
         </Text>
         <TouchableOpacity 
           style={styles.retryButton}
-          onPress={() => {
-            setLoading(true);
-            setTimeout(() => {
-              setUser(staticUser);
-              setUserForm({
-                name: staticUser.name,
-                email: staticUser.email,
-                phone: staticUser.phone,
-                currentPassword: '',
-                newPassword: '',
-                confirmPassword: ''
-              });
-              setLoading(false);
-            }, 1000);
-          }}
+          onPress={loadUserProfile}
         >
           <Text style={styles.retryText}>Try Again</Text>
         </TouchableOpacity>
@@ -781,12 +738,21 @@ const UserProfileScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Profile</Text>
-        <TouchableOpacity style={styles.headerButton}>
+        <TouchableOpacity 
+          style={styles.headerButton}
+          onPress={logoutUser}
+        >
           <Ionicons name="log-out-outline" size={24} color="#666" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Tabs */}
         {renderTabs()}
 
@@ -797,8 +763,7 @@ const UserProfileScreen = () => {
   );
 };
 
-// Styles remain exactly the same as previous code...
-// [All the StyleSheet.create code from previous response]
+// ... (All the StyleSheet.create code remains exactly the same as in the previous response)
 
 const styles = StyleSheet.create({
   container: {
@@ -1040,75 +1005,24 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
-  // Address Card
-  addressCard: {
+  // Placeholder Card
+  placeholderCard: {
     backgroundColor: '#f8f9fa',
-    padding: 15,
+    padding: 30,
     borderRadius: 12,
-    marginBottom: 10,
-  },
-  addressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
   },
-  addressType: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  addressName: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  addressText: {
-    fontSize: 14,
+  placeholderText: {
+    fontSize: 16,
     color: '#666',
-    marginBottom: 2,
+    marginTop: 10,
+    marginBottom: 5,
   },
-  // Payment Card
-  paymentCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  paymentMethod: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  paymentInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  paymentType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
-  },
-  paymentDetails: {
+  placeholderSubtext: {
     fontSize: 12,
-    color: '#666',
-  },
-  // Default Badge
-  defaultBadge: {
-    backgroundColor: '#FF6B6B',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 8,
-  },
-  defaultBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
+    color: '#999',
+    textAlign: 'center',
   },
   // Edit Form
   editForm: {
@@ -1251,59 +1165,6 @@ const styles = StyleSheet.create({
   orderStatLabel: {
     fontSize: 12,
     color: '#666',
-  },
-  activityList: {
-    marginBottom: 20,
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 15,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
-  },
-  activityDescription: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  activityTime: {
-    fontSize: 11,
-    color: '#999',
-  },
-  viewAllOrdersButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
-    borderWidth: 1,
-    borderColor: '#FF6B6B',
-    borderRadius: 8,
-  },
-  viewAllOrdersText: {
-    color: '#FF6B6B',
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8,
   },
 });
 
